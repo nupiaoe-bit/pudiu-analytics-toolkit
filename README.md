@@ -2,6 +2,8 @@
 
 基于 Chrome DevTools Protocol 的**本地被动抓包 + 数据分析**桌面工具。你在浏览器里正常访问网站、登录、翻页，工具实时捕获请求与响应，按规则从响应字段生成地址并自动累积、去重、导出。所有数据只在本机处理，不上传任何服务器。
 
+更多工具：[pudiu toolbx](https://tool.pudiu.com/)  [资源猎手](http://hunter.pudiu.com)  [ip在线查询工具](https://ip.pudiu.com)  [数据清洗工具
+](https://url.pudiu.com)   [pudiu shop](https://www.pudiu.com/)
 完整用法见 [使用说明.md](使用说明.md)。
 
 ## 主要功能
