@@ -65,8 +65,10 @@ body[data-theme="dark"] mark{background:#78500a;color:#fff}
 
 .workspace{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
 .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:var(--shadow)}
-.brand b{font-size:15px;color:var(--primary)}
-.brand small{color:var(--muted);margin-left:5px;font-size:10px}
+.brand{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.brand .pdmark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#3b82f6,#7c3aed);color:#fff;font-size:10px;font-weight:800;letter-spacing:.3px}
+.brand .brandsep{color:var(--muted);font-size:13px}
+.brand b{font-size:13px;color:var(--text);font-weight:600}
 .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:14px;padding:3px 10px;font-size:11px;color:var(--muted);background:var(--panel2)}
 .pill i{width:7px;height:7px;border-radius:50%;background:var(--muted)}
 .pill.on{color:var(--ok);border-color:rgba(22,163,74,.4)}
@@ -271,7 +273,7 @@ pre{font-family:Consolas,"Courier New",monospace;font-size:11.5px;line-height:1.
 
   <div class="workspace">
     <header class="topbar">
-      <div class="brand"><b>Pudiu 大数据分析可视化工具</b><small id="verText">v4.1</small></div>
+      <div class="brand"><span class="pdmark">PD</span><span class="brandsep">·</span><b id="pageName">总览</b></div>
       <span class="pill" id="statusPill"><i></i><span id="statusText">未启动</span></span>
       <div class="sep"></div>
       <button class="btn primary" id="btnToggle">▶ 开始抓包</button>
@@ -623,8 +625,10 @@ let detailState={}, sampleId=0, activeRule=0;
 let navTools=[], navCat='全部', navKeyword='', navSel=-1;
 
 /* ============ 视图切换 ============ */
+const PAGE_NAMES={dash:'总览',capture:'抓包',rules:'规则',gen:'结果',tools:'工具',nav:'导航',settings:'设置'};
 function switchView(v){
   curView=v;
+  $('pageName').textContent=PAGE_NAMES[v]||v;
   document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id==='view-'+v));
   document.querySelectorAll('.rail-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   if(v==='capture') applyFilter();
@@ -1541,7 +1545,6 @@ renderDash();
 applyFilter();
 
 function initApi(){
-  call('version').then(v=>{ if(v) $('verText').textContent='v'+v; });
   call('get_rules').then(r=>{rules=Array.isArray(r)?r:[];renderRules();});
   call('get_bookmarks').then(b=>{bookmarks=Array.isArray(b)?b:[];renderBookmarks();});
   call('get_nav_tools').then(t=>{navTools=Array.isArray(t)?t:[];renderNavCats();renderNavGrid();renderNavDetail();});
