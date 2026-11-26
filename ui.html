@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pudiu 大数据分析可视化工具</title>
+<style>
+:root{
+  --bg:#e8ecf5; --panel:#fff; --panel2:#f7f9fc; --border:#dfe4ee; --text:#1f2430; --muted:#7b8493;
+  --primary:#2563eb; --primary-d:#1d4ed8; --ok:#16a34a; --warn:#d97706; --err:#dc2626;
+  --sel:#e4efff; --hover:#f2f6ff; --code:#f6f8fb; --shadow:0 1px 3px rgba(16,24,40,.07);
+  --jkey:#7c3aed; --jstr:#059669; --jnum:#2563eb;
+  --frame:#cfd8ea; --accent:linear-gradient(135deg,#2563eb,#7c3aed);
+}
+body[data-theme="dark"]{
+  --bg:#0f1420; --panel:#1c2230; --panel2:#232b3b; --border:#30394b; --text:#e6ebf4; --muted:#98a2b6;
+  --primary:#5b8cff; --primary-d:#3b6fe0; --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+  --sel:#243a63; --hover:#263049; --code:#151b28; --shadow:0 1px 3px rgba(0,0,0,.35);
+  --jkey:#c4b5fd; --jstr:#6ee7b7; --jnum:#93c5fd;
+  --frame:#2b3650; --accent:linear-gradient(135deg,#3b6fe0,#8b5cf6);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+/* 全局允许鼠标选中文本（按钮/导航除外），方便选择复制 */
+body{font-family:"Microsoft YaHei UI","Segoe UI",sans-serif;font-size:13px;color:var(--text);background:var(--bg);height:100vh;display:flex;overflow:hidden;padding:8px;user-select:text;-webkit-user-select:text}
+button,.rail-btn,.dtab,label.chk{user-select:none;-webkit-user-select:none}
+/* 外框：淡色渐变边框 + 阴影 + 圆角，整体更像独立桌面软件 */
+.shell{position:relative;border:1px solid var(--frame);border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(20,35,70,.13),0 1px 2px rgba(20,35,70,.08);background:var(--panel)}
+.shell::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);z-index:10}
+body[data-theme="dark"] .shell{box-shadow:0 10px 32px rgba(0,0,0,.45)}
+/* 可选中的文本区域高亮 */
+pre,.kv .v,.ccard .v,.detail-head .u,.gentd .out,td{user-select:text;-webkit-user-select:text}
+::selection{background:#bcd4ff;color:#10223f}
+body[data-theme="dark"] ::selection{background:#2f4d86;color:#fff}
+button,input,select{font-family:inherit;font-size:12px}
+button{cursor:pointer;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:5px;padding:6px 11px;transition:.14s}
+button:hover{background:var(--hover);border-color:var(--primary)}
+button:disabled{opacity:.42;cursor:not-allowed}
+.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn.primary:hover{background:var(--primary-d)}
+.btn.ok{background:rgba(22,163,74,.1);color:var(--ok);border-color:rgba(22,163,74,.35)}
+.btn.warn{background:rgba(217,119,6,.1);color:var(--warn);border-color:rgba(217,119,6,.35)}
+.btn.ghost{background:transparent}
+.btn.mini{padding:2px 7px;font-size:11px}
+input,select{border:1px solid var(--border);border-radius:5px;padding:6px 9px;background:var(--panel);color:var(--text);outline:none}
+input:focus,select:focus{border-color:var(--primary)}
+input[type=checkbox]{padding:0;accent-color:var(--primary);width:14px;height:14px;vertical-align:-2px}
+label.chk{display:inline-flex;align-items:center;gap:5px;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap}
+.grow{flex:1}
+.hint{color:var(--muted);font-size:11px}
+.sep{width:1px;height:20px;background:var(--border);margin:0 2px}
+code{font-family:Consolas,"Courier New",monospace;background:var(--code);border:1px solid var(--border);border-radius:3px;padding:1px 4px;font-size:11px}
+mark{background:#fde68a;color:#78350f;border-radius:2px;padding:0 1px}
+body[data-theme="dark"] mark{background:#78500a;color:#fff}
+
+/* 左侧导航 */
+.shell{display:flex;flex:1;min-width:0;min-height:0}
+.rail{width:72px;flex:none;background:#182033;color:#c7d2e8;display:flex;flex-direction:column;align-items:center;padding:14px 0 10px;gap:6px}
+.rail-logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:800;letter-spacing:.5px;color:#fff;margin-bottom:14px;font-size:14px}
+.rail-btn{width:58px;background:transparent;border:0;color:#9faec7;border-radius:8px;padding:9px 2px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;position:relative}
+.rail-btn .ico{font-size:16px;line-height:1}
+.rail-btn:hover{background:rgba(255,255,255,.08);color:#fff}
+.rail-btn.active{background:rgba(59,130,246,.22);color:#fff}
+.rail-btn i{position:absolute;top:3px;right:6px;background:#ef4444;color:#fff;font-style:normal;font-size:9px;border-radius:8px;padding:0 4px;min-width:14px}
+.rail-foot{margin-top:auto;font-size:10px;color:#64748b;writing-mode:vertical-rl;letter-spacing:2px}
+
+.workspace{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:var(--shadow)}
+.brand b{font-size:15px;color:var(--primary)}
+.brand small{color:var(--muted);margin-left:5px;font-size:10px}
+.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:14px;padding:3px 10px;font-size:11px;color:var(--muted);background:var(--panel2)}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.pill.on{color:var(--ok);border-color:rgba(22,163,74,.4)}
+.pill.on i{background:var(--ok);box-shadow:0 0 0 3px rgba(22,163,74,.16)}
+.port{width:58px}
+.urlbar{flex:1;min-width:180px}
+/* 预设网址书签条 */
+.bmbar{background:var(--panel);border-bottom:1px solid var(--border);padding:5px 14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px}
+.bmbar .bmchip{border:1px solid var(--border);background:var(--panel2);border-radius:12px;padding:3px 9px;color:var(--primary);cursor:pointer;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.bmbar .bmchip:hover{background:var(--sel);border-color:var(--primary)}
+.bmbar .bmchip::before{content:"🔗 ";font-size:10px}
+
+.view{display:none;flex:1;flex-direction:column;min-height:0;min-width:0}
+.view.active{display:flex}
+.view-head{padding:8px 12px;background:var(--panel2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.view-head input{flex:none}
+.view-head .kw{width:190px}
+.view-head .host{width:120px}
+.stat-chip{font-size:11px;color:var(--muted)}
+.stat-chip b{color:var(--primary);font-size:13px}
+
+.split{flex:1;display:flex;min-height:0}
+.pane{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)}
+.pane.list{flex:1.25;border-right:1px solid var(--border)}
+.pane.detail{flex:1}
+.pane.genlist{flex:1.15;border-right:1px solid var(--border)}
+.pane.gendetail{flex:1}
+.pane-title{padding:7px 11px;border-bottom:1px solid var(--border);background:var(--panel2);font-weight:600;font-size:12px;display:flex;align-items:center;gap:8px}
+.pane-title .count{font-weight:400;color:var(--muted)}
+.table-wrap{flex:1;overflow:auto;min-height:0}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+thead th{position:sticky;top:0;background:var(--panel2);border-bottom:1px solid var(--border);text-align:left;padding:6px 8px;font-size:11px;color:var(--muted);font-weight:600;z-index:2;white-space:nowrap}
+thead th[data-k]{cursor:pointer}
+tbody td{padding:5px 8px;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--hover)}
+tbody tr.sel{background:var(--sel)}
+.m{font-weight:700;font-size:10px;padding:2px 5px;border-radius:3px;background:rgba(37,99,235,.12);color:var(--primary)}
+.m.POST,.m.PUT,.m.PATCH{background:rgba(217,119,6,.14);color:var(--warn)}
+.m.DELETE{background:rgba(220,38,38,.14);color:var(--err)}
+.s2{color:var(--ok);font-weight:700}.s3{color:var(--warn);font-weight:700}.s4,.s5,.sm1{color:var(--err);font-weight:700}
+.ty-XHR,.ty-Fetch{color:#7c3aed;font-weight:600}
+.pathlink{color:var(--primary);cursor:pointer}
+.pathlink:hover{text-decoration:underline}
+.cbadge{color:var(--ok);font-weight:700}
+.pager{display:flex;align-items:center;gap:5px;padding:6px 10px;border-top:1px solid var(--border);background:var(--panel2);font-size:11px;flex-wrap:wrap}
+.pager select{padding:2px 5px;font-size:11px}
+.pager button{padding:3px 8px;font-size:11px}
+.pager .pinfo{color:var(--muted)}
+.blank{color:var(--muted);text-align:center;padding:36px 18px;line-height:2}
+/* 编辑模式 */
+.editbar{display:flex;align-items:center;gap:7px;padding:6px 10px;border-bottom:1px solid var(--border);background:rgba(37,99,235,.07);font-size:11px;flex-wrap:wrap}
+textarea.editbox{flex:1;width:100%;min-height:120px;resize:vertical;font-family:Consolas,"Courier New",monospace;font-size:11.5px;line-height:1.6;padding:10px;border:1px solid var(--primary);border-radius:6px;background:var(--panel);color:var(--text);outline:none;user-select:text;-webkit-user-select:text}
+.editnote{color:var(--muted);font-size:10px}
+.editable{cursor:text;border-bottom:1px dashed transparent}
+.editable:hover{border-bottom-color:var(--primary)}
+.genedit{display:flex;align-items:center;gap:6px;width:100%}
+.genedit input{flex:1;min-width:0}
+/* 工具箱 */
+.toolgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.toolgrid button{text-align:left;padding:7px 9px;font-size:11.5px}
+.toolgrid button.on{background:var(--sel);border-color:var(--primary);color:var(--primary);font-weight:700}
+.paramrow{margin-top:9px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.paramrow input{flex:1;min-width:120px}
+.extcard{border:1px solid var(--border);border-radius:6px;padding:6px 8px;margin-bottom:6px;background:var(--panel2)}
+.extcard .row{display:flex;gap:6px;align-items:center;margin-bottom:4px}
+.extcard input{flex:1;min-width:0;font-size:11px;padding:4px 7px}
+.extcard input.cmd{flex:2}
+
+/* 详情 */
+.detail-head{padding:10px 12px;border-bottom:1px solid var(--border);background:var(--panel2)}
+.detail-head .u{font-size:12px;font-weight:600;word-break:break-all;line-height:1.6;margin:5px 0 3px}
+.detail-head .meta{font-size:11px;color:var(--muted);line-height:1.6}
+.detail-acts{display:flex;gap:6px;padding:7px 11px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.dtabs{display:flex;border-bottom:1px solid var(--border);background:var(--panel2);padding:0 8px;flex-wrap:wrap}
+.dtab{padding:8px 11px;cursor:pointer;font-size:12px;color:var(--muted);border-bottom:2px solid transparent;user-select:none}
+.dtab:hover{color:var(--text)}
+.dtab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:700}
+.dtab i{font-style:normal;font-size:10px;background:var(--panel);border-radius:8px;padding:0 5px;margin-left:4px;color:var(--muted)}
+.dtool{display:flex;align-items:center;gap:7px;padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px}
+.dtool input{flex:1;padding:4px 8px;font-size:11px}
+.dbody{flex:1;overflow:auto;padding:11px;min-height:0}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:3px 10px;font-size:11px;line-height:1.65}
+.kv .k{color:var(--muted);word-break:break-all}
+.kv .v{font-family:Consolas,monospace;word-break:break-all}
+.ccard{border:1px solid var(--border);border-radius:6px;background:var(--panel2);padding:8px 10px;margin-bottom:7px}
+.ccard .n{font-weight:700;color:var(--primary);font-family:Consolas,monospace}
+.ccard .v{font-family:Consolas,monospace;font-size:11px;word-break:break-all;margin:3px 0}
+.ccard .m{font-size:10px;color:var(--muted)}
+pre{font-family:Consolas,"Courier New",monospace;font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-all;background:var(--code);border:1px solid var(--border);border-radius:6px;padding:11px;color:var(--text)}
+.jkey{color:var(--jkey)}.jstr{color:var(--jstr)}.jnum{color:var(--jnum)}
+.errbox{border:1px solid rgba(220,38,38,.35);background:rgba(220,38,38,.07);color:var(--err);border-radius:6px;padding:9px 11px;font-size:11px;margin-bottom:9px;line-height:1.7}
+
+/* 总览 */
+.dash{overflow:auto;padding:18px 22px;flex:1}
+.dash h3{font-size:14px;margin:0 0 10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow)}
+.card .lbl{color:var(--muted);font-size:11px}
+.card .num{font-size:26px;font-weight:800;line-height:1.5}
+.card.a .num{color:var(--primary)}.card.b .num{color:var(--ok)}.card.c .num{color:#7c3aed}.card.d .num{color:var(--err)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow);margin-bottom:14px}
+.steps{line-height:2.1;font-size:12px}
+.steps b{display:inline-block;width:21px;height:21px;line-height:21px;text-align:center;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;margin-right:7px}
+.diagline{display:flex;justify-content:space-between;border-bottom:1px dashed var(--border);padding:5px 0;font-size:12px}
+.diagline span:last-child{font-weight:700;color:var(--primary)}
+.minilist{font-size:11px;line-height:2;word-break:break-all}
+
+/* 规则 */
+.rulesview{overflow:auto;padding:16px 20px;flex:1}
+.notice{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.9;margin-bottom:13px;color:var(--text)}
+.samplebar{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.samplebar select{min-width:240px;max-width:380px}
+.keys{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;width:100%}
+.chip{font-size:11px;padding:3px 8px;border-radius:12px;background:var(--panel2);border-color:var(--border);color:var(--primary);font-family:Consolas,monospace}
+.rulecard{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:13px 15px;margin-bottom:11px;box-shadow:var(--shadow)}
+.rulecard.off{opacity:.62}
+.rulehead{display:flex;gap:8px;align-items:center;margin-bottom:11px}
+.rulehead .rn{font-weight:700;color:#7c3aed;white-space:nowrap}
+.rulehead input[type=text]{flex:1}
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.rgrid .full{grid-column:1/-1}
+.fld label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.fld input,.fld select{width:100%}
+.preview{margin-top:9px;padding:7px 10px;border-radius:6px;background:var(--panel2);border:1px dashed var(--border);font-size:11px;line-height:1.8;word-break:break-all}
+.preview code{margin-right:5px}
+.addcard{border:2px dashed var(--border);width:100%;padding:12px;background:var(--panel2);color:var(--muted);border-radius:9px;margin-bottom:12px}
+.addcard:hover{border-color:var(--primary);color:var(--primary)}
+
+/* 生成结果 */
+.gentd .out{color:var(--primary);cursor:pointer}
+.gentd .out:hover{text-decoration:underline}
+.diagbar{margin:6px 10px;border:1px solid var(--border);border-radius:5px;background:var(--panel2);padding:5px 9px;font-size:11px;color:var(--muted);line-height:1.7}
+.diagbar b{color:var(--primary)}
+
+/* 设置 */
+.settings{overflow:auto;padding:18px 22px;flex:1}
+.setrow{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed var(--border);font-size:12px;flex-wrap:wrap}
+.setrow .sl{width:170px;color:var(--muted)}
+.setrow .sd{color:var(--muted);font-size:11px;flex:1;min-width:200px}
+
+/* 弹层 */
+.mask{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;z-index:50;padding:28px}
+.mask.show{display:flex}
+.modal{background:var(--panel);border-radius:10px;width:100%;height:100%;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden}
+.modal.small{height:auto;max-width:660px;margin:auto}
+.formrow{display:flex;gap:7px;align-items:center;margin-bottom:8px}
+.formrow input,.formrow select{min-width:0}
+.formrow .f1{flex:1.4}.formrow .f2{flex:1.6}.formrow .f3{flex:1}
+.formrow .lb{width:52px;flex:none;color:var(--muted);font-size:11.5px}
+
+/* 工具导航 */
+.navview{padding:14px 16px;display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden}
+.navbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:11px}
+.navbar input.search{flex:1;min-width:190px}
+.navcats{display:flex;gap:5px;flex-wrap:wrap}
+.navcats button{font-size:11px;padding:3px 9px;border-radius:12px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);cursor:pointer}
+.navcats button:hover{color:var(--primary);border-color:var(--primary)}
+.navcats button.on{background:var(--sel);border-color:var(--primary);color:var(--primary);font-weight:700}
+.navsplit{flex:1;display:grid;grid-template-columns:1.1fr .9fr;gap:13px;min-height:0}
+.navsplit .box{min-height:0;margin-bottom:0;display:flex;flex-direction:column}
+.navlist{overflow:auto;padding:12px}
+.navgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:9px;align-content:start}
+.navcard{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:10px 11px;cursor:pointer;transition:.14s;min-width:0}
+.navcard:hover{border-color:var(--primary);transform:translateY(-1px);box-shadow:var(--shadow)}
+.navcard.on{border-color:var(--primary);box-shadow:0 0 0 2px var(--sel)}
+.navcard b{display:block;font-size:12.5px;margin-bottom:5px;line-height:1.4}
+.navcard .nc{font-size:10px;color:var(--primary);background:var(--sel);border-radius:9px;padding:1px 7px;display:inline-block;margin-bottom:5px}
+.navcard .nu{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:ltr}
+.navdetail{overflow:auto;padding:14px 16px}
+.navdetail h2{font-size:17px;margin-bottom:6px;line-height:1.4}
+.navdetail .ndmeta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.navdetail .ndsec{margin-bottom:13px}
+.navdetail .ndsec .k{font-size:11px;color:var(--muted);margin-bottom:4px}
+.navdetail .ndsec .v{font-size:12.5px;line-height:1.85}
+.navdetail .ndurl{font-family:Consolas,monospace;word-break:break-all;background:var(--code);border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-size:11.5px;user-select:text}
+.navdetail .ndacts{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}
+@media(max-width:1050px){.navsplit{grid-template-columns:1fr;overflow:auto}.navsplit .box{min-height:260px}}
+.modalhead{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--panel2)}
+.modalhead .t{font-weight:700;font-size:14px}
+.modalbody{flex:1;display:flex;flex-direction:column;min-height:0}
+#toast{position:fixed;bottom:34px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:9px 18px;border-radius:6px;font-size:12px;opacity:0;transition:.22s;pointer-events:none;z-index:99;max-width:80%}
+#toast.show{opacity:1}
+.statusbar{background:var(--panel2);border-top:1px solid var(--border);padding:5px 13px;display:flex;gap:16px;align-items:center;font-size:11px;color:var(--muted)}
+.statusbar b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-logo" title="Pudiu 大数据分析可视化工具">PD</div>
+    <button class="rail-btn active" data-view="dash"><span class="ico">◎</span>总览</button>
+    <button class="rail-btn" data-view="capture"><span class="ico">≋</span>抓包<i id="railCap" style="display:none">0</i></button>
+    <button class="rail-btn" data-view="rules"><span class="ico">⚙</span>规则<i id="railRule" style="display:none">0</i></button>
+    <button class="rail-btn" data-view="gen"><span class="ico">▤</span>结果<i id="railGen" style="display:none">0</i></button>
+    <button class="rail-btn" data-view="tools"><span class="ico">✦</span>工具</button>
+    <button class="rail-btn" data-view="nav"><span class="ico">◈</span>导航</button>
+    <button class="rail-btn" data-view="settings"><span class="ico">☰</span>设置</button>
+    <div class="rail-foot">PUDIU ANALYTICS</div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="brand"><b>Pudiu 大数据分析可视化工具</b><small id="verText">v4.1</small></div>
+      <span class="pill" id="statusPill"><i></i><span id="statusText">未启动</span></span>
+      <div class="sep"></div>
+      <button class="btn primary" id="btnToggle">▶ 开始抓包</button>
+      <button class="btn warn" id="btnAttach" title="先运行 免安装版/以调试模式启动Chrome.bat">附加已开浏览器</button>
+      <input id="attachPort" class="port" value="9222" title="Chrome 调试端口">
+      <input id="url" class="urlbar" placeholder="输入网址回车，在抓包浏览器里打开；也可直接在浏览器窗口里正常访问">
+      <button class="btn" id="btnGo" disabled>打开</button>
+    </header>
+    <!-- 预设网址书签条 -->
+    <div class="bmbar" id="bmBar"><span class="hint">预设网址：</span><span id="bmList"></span><button class="btn mini ghost" id="bmEdit" title="增删改预设网址">✎ 管理</button></div>
+
+    <!-- 总览 -->
+    <section class="view active" id="view-dash">
+      <div class="dash">
+        <h3>实时概览</h3>
+        <div class="cards" id="dashCards"></div>
+        <div class="grid2">
+          <div>
+            <div class="box">
+              <h3>快速上手</h3>
+              <div class="steps">
+                <div><b>1</b>点顶部「开始抓包」，会在屏幕内弹出一个 Chrome 窗口。</div>
+                <div><b>2</b>在这个窗口里正常访问网站、登录、翻页，请求实时出现在「抓包」页。</div>
+                <div><b>3</b>点任意请求的地址即可查看响应正文；点「全屏查看」更清楚。</div>
+                <div><b>4</b>在「规则」里设置接口关键字 + 字段名 + 前后缀，翻页时结果自动累积到「结果」页。</div>
+                <div><b>5</b>结果支持勾选、复制、导出 TXT / Excel / CSV / JSON。</div>
+              </div>
+            </div>
+            <div class="box">
+              <h3>抓不到数据？看这里</h3>
+              <div class="hint" style="line-height:2">
+                · 普通双击打开的 Chrome 没有调试端口，外部读不到明文，请用「附加已开浏览器」配合提供的 bat 启动。<br>
+                · 有请求但正文为空：点详情页的「重新取正文」，或回「抓包」页点「重新处理历史」。<br>
+                · 生成结果为 0：检查规则的接口关键字是否匹配、字段名是否正确，用规则卡片的「试运行」验证。
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="box">
+              <h3>诊断计数</h3>
+              <div id="dashDiag"></div>
+            </div>
+            <div class="box">
+              <h3>最近生成</h3>
+              <div class="minilist" id="dashRecent"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 抓包 -->
+    <section class="view" id="view-capture">
+      <div class="view-head">
+        <input class="kw" id="fKw" placeholder="URL / 正文 / Cookie 关键词">
+        <input class="host" id="fHost" placeholder="域名">
+        <select id="fMethod"><option value="">全部方法</option><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option></select>
+        <select id="fStatus"><option value="">全部状态</option><option value="2">2xx</option><option value="3">3xx</option><option value="4">4xx</option><option value="5">5xx</option><option value="-1">失败</option></select>
+        <select id="fType"><option value="">全部类型</option><option value="api">仅接口 XHR/Fetch</option><option>Document</option><option>Script</option><option>Stylesheet</option><option>Image</option><option>Font</option><option>Other</option></select>
+        <label class="chk"><input type="checkbox" id="fCookie">带Cookie</label>
+        <button class="btn mini" id="btnOnlyApi">只看接口</button>
+        <button class="btn mini" id="btnResetFilter">重置</button>
+        <div class="grow"></div>
+        <label class="chk" title="新请求到来时自动跳到最后一页"><input type="checkbox" id="autoFollow" checked>跟随最新</label>
+        <button class="btn mini" id="btnClear">清空</button>
+        <select id="fmt"><option value="xlsx">Excel</option><option value="csv">CSV</option><option value="json">JSON</option><option value="har">HAR</option></select>
+        <button class="btn mini" id="btnExport">导出</button>
+      </div>
+      <div class="split">
+        <div class="pane list">
+          <div class="pane-title">请求列表 <span class="count" id="capCount"></span><span class="grow"></span><span class="hint">点列头排序 · 点地址看响应</span></div>
+          <div class="table-wrap">
+            <table>
+              <colgroup><col style="width:42px"><col style="width:62px"><col style="width:56px"><col style="width:50px"><col style="width:130px"><col><col style="width:66px"><col style="width:60px"><col style="width:56px"><col style="width:46px"><col style="width:52px"></colgroup>
+              <thead><tr><th data-k="id">#</th><th data-k="time">时间</th><th data-k="method">方法</th><th data-k="status">状态</th><th data-k="host">域名</th><th data-k="path">地址</th><th data-k="type">类型</th><th data-k="size">大小</th><th data-k="duration">耗时</th><th>CK</th><th>响应</th></tr></thead>
+              <tbody id="tbody"></tbody>
+            </table>
+            <div class="blank" id="capEmpty">还没有请求<br>点顶部「开始抓包」，然后在弹出的浏览器里访问网页</div>
+          </div>
+          <div class="pager">
+            <span>每页</span><select id="capSize"><option>50</option><option selected>100</option><option>200</option><option>500</option></select>
+            <button id="capFirst">首页</button><button id="capPrev">上一页</button><span id="capInfo">0/0</span><button id="capNext">下一页</button><button id="capLast">末页</button>
+            <span class="pinfo" id="capTotal">共 0 条</span>
+          </div>
+        </div>
+        <div class="pane detail" id="detailPane"></div>
+      </div>
+    </section>
+
+    <!-- 规则 -->
+    <section class="view" id="view-rules">
+      <div class="rulesview">
+        <div class="notice">
+          <b>规则怎么用：</b>先在抓包列表里点一条有 JSON 响应的请求，回到本页它会自动成为「样例响应」。
+          填接口 URL 关键字（如 <code>findNoticesBynotices</code>）、目标字段名（如 <code>id</code>）、前缀后缀，点「试运行」验证，
+          然后回抓包页翻页 —— 命中接口的响应会自动提取字段、拼成地址并累积到「结果」页。规则实时保存。
+        </div>
+        <div class="samplebar">
+          <span class="hint">样例响应：</span>
+          <select id="sampleSel"></select>
+          <button class="btn mini" id="btnSampleRefresh">刷新</button>
+          <span class="hint" id="sampleInfo">选择一条 JSON 响应</span>
+          <div class="keys" id="sampleKeys"></div>
+        </div>
+        <div id="ruleCards"></div>
+        <button class="addcard" id="btnAddRule">＋ 添加一条规则</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn primary" id="btnSaveRules">保存规则到文件</button>
+          <button class="btn" id="btnOpenRules">打开规则文件夹</button>
+          <span class="hint" id="ruleSaveHint"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 结果 -->
+    <section class="view" id="view-gen">
+      <div class="view-head">
+        <select id="genRuleFilter"><option value="">全部规则</option></select>
+        <input class="kw" id="genKw" placeholder="筛选生成地址 / 字段值">
+        <span class="stat-chip">共 <b id="genCount">0</b> 条</span>
+        <div class="grow"></div>
+        <button class="btn mini" id="btnReprocess">重新处理历史</button>
+        <button class="btn mini ok" id="btnGenCopySel">复制选中</button>
+        <button class="btn mini ok" id="btnGenCopyAll">复制全部</button>
+        <button class="btn mini primary" id="btnGenOpenAll">批量打开选中</button>
+        <button class="btn mini" id="btnGenToolAll">送入工具箱</button>
+        <button class="btn mini" id="btnGenClear">清空</button>
+        <select id="genFmt"><option value="txt">TXT 一行一个</option><option value="xlsx">Excel</option><option value="csv">CSV</option><option value="json">JSON</option></select>
+        <button class="btn mini primary" id="btnGenExport">导出</button>
+      </div>
+      <div class="split">
+        <div class="pane genlist">
+          <div class="pane-title">生成结果 <span class="count">点地址可查看来源响应</span></div>
+          <div class="table-wrap">
+            <table>
+              <colgroup><col style="width:32px"><col style="width:44px"><col style="width:110px"><col><col style="width:140px"><col style="width:70px"></colgroup>
+              <thead><tr><th></th><th>#</th><th>规则</th><th>生成地址</th><th>原始值</th><th>时间</th></tr></thead>
+              <tbody id="genTbody"></tbody>
+            </table>
+            <div class="blank" id="genEmpty">还没有生成结果<br>先在「规则」里设置好规则，回抓包页翻页即可自动累积</div>
+          </div>
+          <div class="pager">
+            <span>每页</span><select id="genSize"><option>20</option><option selected>50</option><option>100</option><option>200</option></select>
+            <button id="genFirst">首页</button><button id="genPrev">上一页</button><span id="genInfo">0/0</span><button id="genNext">下一页</button><button id="genLast">末页</button>
+            <span class="pinfo" id="genTotal">共 0 条</span>
+          </div>
+          <div class="diagbar" id="diagInfo">诊断：等待抓包…</div>
+        </div>
+        <div class="pane gendetail" id="genDetailPane"></div>
+      </div>
+    </section>
+
+    <!-- 工具箱 -->
+    <section class="view" id="view-tools">
+      <div class="rulesview">
+        <div class="notice">
+          <b>数据处理工具箱：</b>把左下角的文本粘贴或填入，选择工具即时处理；可从「抓包」详情或「结果」列表一键把内容送进来。
+          所有处理都在本机浏览器完成，不上传任何数据。外部联动会把文本存成临时文件后调用你配置的 exe/脚本。
+        </div>
+        <div class="grid2">
+          <div>
+            <div class="box">
+              <h3>① 输入文本</h3>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px">
+                <button class="btn mini" id="toolFromSel">粘贴选中/剪贴板</button>
+                <button class="btn mini" id="toolFromResp">用当前详情响应</button>
+                <button class="btn mini" id="toolFromGen">用全部生成地址</button>
+                <button class="btn mini" id="toolClear">清空</button>
+              </div>
+              <textarea id="toolInput" class="editbox" style="min-height:210px" placeholder="在这里粘贴 JSON / 文本 / 一批网址（每行一个）…"></textarea>
+              <div class="hint" id="toolStat" style="margin-top:5px">0 字符 · 0 行</div>
+            </div>
+            <div class="box">
+              <h3>③ 处理结果</h3>
+              <textarea id="toolOutput" class="editbox" style="min-height:210px" placeholder="处理结果会显示在这里，可再编辑、复制、保存或送外部程序" spellcheck="false"></textarea>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+                <button class="btn mini ok" id="toolCopy">复制结果</button>
+                <button class="btn mini" id="toolSave">保存到文件</button>
+                <button class="btn mini" id="toolSaveExt">选择扩展名后保存</button>
+                <select id="toolExt" class="mini"><option>.txt</option><option>.json</option><option>.csv</option><option>.py</option><option>.html</option><option>.md</option></select>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="box">
+              <h3>② 选择处理工具</h3>
+              <div class="toolgrid" id="toolGrid"></div>
+              <div class="paramrow" id="toolParams"></div>
+            </div>
+            <div class="box">
+              <h3>外部程序联动配置</h3>
+              <div class="hint" style="line-height:1.9;margin-bottom:8px">
+                命令模板中用 <code>{file}</code> 代表临时文件路径，<code>{text}</code> 代表文本前 500 字。
+                例如 <code>notepad.exe {file}</code>、<code>python {file}</code>。配置保存在 exe 同目录 <code>tools.json</code>。
+              </div>
+              <div id="extTools"></div>
+              <button class="btn mini" id="toolAddExt">＋ 添加外部工具</button>
+              <button class="btn mini primary" id="toolSaveExtCfg">保存外部工具配置</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 工具导航 -->
+    <section class="view" id="view-nav">
+      <div class="navview">
+        <div class="navbar">
+          <input id="navSearch" class="search" placeholder="搜索工具名称 / 说明 / 网址…">
+          <div class="navcats" id="navCats"></div>
+          <button class="btn mini" id="navAdd">＋ 添加工具</button>
+          <button class="btn mini" id="navReset">恢复推荐清单</button>
+        </div>
+        <div class="hint" style="margin:-4px 0 9px">共 <b id="navCount">0</b> 个工具 · 点左侧卡片查看详细说明，网址可一键在系统浏览器或抓包浏览器打开。</div>
+        <div class="navsplit">
+          <div class="box navlist"><div class="navgrid" id="navGrid"></div></div>
+          <div class="box navdetail" id="navDetail"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="view" id="view-settings">
+      <div class="settings">
+        <div class="box">
+          <h3>抓取与显示</h3>
+          <div class="setrow"><span class="sl">抓取响应正文</span><label class="chk"><input type="checkbox" id="setBody" checked>开启</label><span class="sd">关闭后只记录 URL / 状态码等元信息，看不了响应内容</span></div>
+          <div class="setrow"><span class="sl">跟随最新请求</span><label class="chk"><input type="checkbox" id="setFollow" checked>开启</label><span class="sd">新请求到来时抓包列表自动跳到最后一页</span></div>
+          <div class="setrow"><span class="sl">界面主题</span><select id="setTheme"><option value="light">浅色</option><option value="dark">深色</option></select><span class="sd">偏好保存在本机浏览器缓存里</span></div>
+          <div class="setrow"><span class="sl">抓包列表每页</span><select id="setCapSize"><option>50</option><option selected>100</option><option>200</option><option>500</option></select><span class="sd">结果列表每页在「结果」页顶部单独设置</span></div>
+        </div>
+        <div class="box">
+          <h3>文件与目录</h3>
+          <div class="setrow"><span class="sl">规则配置</span><button class="btn" id="setOpenRules">打开规则文件夹</button><span class="sd" id="setRulesPath"></span></div>
+          <div class="setrow"><span class="sl">导出/日志目录</span><button class="btn" id="setOpenDir">打开程序目录</button><span class="sd">导出的文件与 startup.log 都放在 exe 同目录</span></div>
+        </div>
+        <div class="box">
+          <h3>关于</h3>
+          <div class="hint" style="line-height:2">
+            被动抓包：通过浏览器调试协议读取已解密的明文流量，不解密 HTTPS、不改 hosts。<br>
+            只处理本机浏览器产生的请求。默认 Chrome 没有调试端口，不能从外部读取；请用「附加已开浏览器」方式。<br>
+            单条响应正文最多保存 500KB，二进制资源（图片/字体/视频）默认不抓正文。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="statusbar">
+      <span>请求 <b id="stTotal">0</b></span>
+      <span>筛选后 <b id="stShow">0</b></span>
+      <span>生成 <b id="stGen">0</b></span>
+      <span>状态 <b id="stState">未启动</b></span>
+      <span class="grow"></span>
+      <span class="hint" id="autoHint">每 0.8 秒自动刷新</span>
+    </footer>
+  </div>
+</div>
+
+<div class="mask" id="respModal">
+  <div class="modal">
+    <div class="modalhead"><span class="t">请求详情 · 全屏</span><span class="grow"></span><button class="btn mini" id="modalClose">关闭 (Esc)</button></div>
+    <div class="modalbody" id="modalBody"></div>
+  </div>
+</div>
+<div class="mask" id="bmModal">
+  <div class="modal small">
+    <div class="modalhead"><span class="t">管理预设网址</span><span class="grow"></span><button class="btn mini" id="bmCancel">关闭</button></div>
+    <div class="modalbody" style="padding:14px">
+      <div class="hint" style="line-height:1.9;margin-bottom:10px">每行填写「标题 + 网址」即可，网址留空的行会被忽略。保存后显示在顶部书签条，点击即在抓包浏览器打开。</div>
+      <div id="bmRows" style="flex:1;overflow:auto"></div>
+      <div style="display:flex;gap:7px;margin-top:9px;align-items:center">
+        <button class="btn mini" id="bmAdd">＋ 添加一行</button><span class="grow"></span>
+        <button class="btn mini primary" id="bmSave">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="navModal">
+  <div class="modal small">
+    <div class="modalhead"><span class="t" id="navModalTitle">添加工具</span><span class="grow"></span><button class="btn mini" id="navModalCancel">关闭</button></div>
+    <div class="modalbody" style="padding:14px">
+      <input type="hidden" id="navEditIdx" value="-1">
+      <div class="formrow"><span class="lb">名称</span><input id="navFName" class="f1" placeholder="如 ECharts 示例"></div>
+      <div class="formrow"><span class="lb">分类</span><input id="navFCat" class="f1" list="navCatList" placeholder="可视化图表"><datalist id="navCatList"></datalist></div>
+      <div class="formrow"><span class="lb">网址</span><input id="navFUrl" class="f2" placeholder="https://…"></div>
+      <div class="formrow"><span class="lb">简介</span><input id="navFDesc" class="f3" placeholder="一句话说明这个工具能做什么"></div>
+      <div class="formrow"><span class="lb">建议</span><input id="navFTip" class="f3" placeholder="使用技巧 / 适用场景（可留空）"></div>
+      <div style="display:flex;gap:7px;margin-top:10px;align-items:center">
+        <span class="hint">名称与网址为必填，其余可留空</span><span class="grow"></span>
+        <button class="btn mini primary" id="navModalSave">保存工具</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<button id="selCopy" title="复制选中的文字 (Ctrl+C)" style="display:none;position:fixed;z-index:120;padding:4px 10px;border-radius:14px;background:var(--primary);color:#fff;border:0;font-size:11px;box-shadow:0 4px 14px rgba(37,99,235,.35);cursor:pointer">复制选中</button>
+
+<script>
+/* ============ 基础工具 ============ */
+const $ = id => document.getElementById(id);
+function api(){ return (window.pywebview && window.pywebview.api) ? window.pywebview.api : null; }
+function call(name, ...args){
+  return new Promise(res=>{
+    const a = api();
+    if(!a || typeof a[name] !== 'function') return res(null);
+    try{ a[name](...args).then(res).catch(e=>{ console.error(name,e); res(null); }); }
+    catch(e){ console.error(name,e); res(null); }
+  });
+}
+function toast(msg){ if(!msg)return; const t=$('toast'); t.textContent=String(msg); t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function fmtSize(n){ n=Number(n)||0; return n<1024?n+'B':n<1048576?(n/1024).toFixed(1)+'KB':(n/1048576).toFixed(1)+'MB'; }
+function sc(s){ const n=Number(s); if(n===200||(n>=200&&n<300))return 's2'; if(n>=300&&n<400)return 's3'; if(n>=400&&n<500)return 's4'; if(n>=500)return 's5'; if(n===-1)return 'sm1'; return ''; }
+function looksJSON(b){ return /^\s*[\[{]/.test(String(b||'')); }
+function pretty(r){ return `${r.method} ${r.status} · ${fmtSize(r.size)} · ${r.duration||0}ms`; }
+function setPager(p,page,pages,total){
+  $(p+'Info').textContent=page+'/'+pages; $(p+'Total').textContent='共 '+total+' 条';
+  $(p+'First').disabled=$(p+'Prev').disabled=page<=1;
+  $(p+'Next').disabled=$(p+'Last').disabled=page>=pages;
+}
+function copyText(text){
+  if(text==null||text==='') return toast('没有可复制的内容');
+  call('copy_to_clipboard',String(text)).then(ok=>toast(ok?'已复制到剪贴板 ✓':'复制失败：剪贴板被占用'));
+}
+
+/* 选中文本时浮出「复制选中」按钮；不拦截系统 Ctrl+C，两者都可用 */
+document.addEventListener('mouseup',e=>{
+  setTimeout(()=>{
+    const b=$('selCopy'), s=window.getSelection();
+    const txt=s?(s.toString()||'').trim():'';
+    if(txt && !s.isCollapsed){
+      b.style.display='block';
+      const r=s.getRangeAt(0).getBoundingClientRect();
+      b.style.left=Math.max(6,Math.min(window.innerWidth-90,r.left))+'px';
+      b.style.top=Math.max(6,r.top-32)+'px';
+      b._text=txt;
+    }else b.style.display='none';
+  },10);
+});
+$('selCopy').onclick=()=>{ copyText($('selCopy')._text); $('selCopy').style.display='none'; window.getSelection().removeAllRanges(); };
+
+/* ============ 全局状态 ============ */
+let allRows=[], filtered=[], lastId=0, selectedId=null, sortKey='id', sortAsc=false;
+let rules=[], genRows=[], genFiltered=[], lastGenId=0, genPage=1, genSize=50, selectedGenIds=new Set();
+let capPage=1, capSize=100, curView='dash', captureOn=false, pollTimer=null, diagCache=null;
+let detailState={}, sampleId=0, activeRule=0;
+let navTools=[], navCat='全部', navKeyword='', navSel=-1;
+
+/* ============ 视图切换 ============ */
+function switchView(v){
+  curView=v;
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id==='view-'+v));
+  document.querySelectorAll('.rail-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  if(v==='capture') applyFilter();
+  if(v==='rules'){ loadSamples(); renderRules(); }
+  if(v==='gen'){ applyGenFilter(false); }
+  if(v==='tools'){ renderToolGrid(); renderToolParams(); ensureRunBtn(); }
+  if(v==='nav'){ renderNavCats(); renderNavGrid(); renderNavDetail(); }
+  if(v==='dash') renderDash();
+}
+document.querySelectorAll('.rail-btn').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+
+function updateBadges(){
+  const rc=rules.filter(r=>r.enabled).length;
+  [['railCap',allRows.length],['railRule',rc],['railGen',genRows.length]].forEach(([id,n])=>{
+    const el=$(id); el.textContent=n>999?'999+':n; el.style.display=n?'block':'none';
+  });
+  $('stTotal').textContent=allRows.length; $('stShow').textContent=filtered.length;
+  $('stGen').textContent=genRows.length; $('genCount').textContent=genRows.length;
+}
+
+/* ============ 抓包列表 ============ */
+function applyFilter(){
+  const kw=$('fKw').value.trim().toLowerCase(), host=$('fHost').value.trim().toLowerCase();
+  const method=$('fMethod').value, status=$('fStatus').value, type=$('fType').value;
+  const onlyCookie=$('fCookie').checked;
+  filtered=allRows.filter(r=>{
+    if(host && !String(r.host||'').toLowerCase().includes(host)) return false;
+    if(method && r.method!==method) return false;
+    if(status==='-1'){ if(r.status!==-1) return false; }
+    else if(status && Number(String(r.status)[0])!==Number(status)) return false;
+    if(type==='api'){ if(!['XHR','Fetch'].includes(r.type)) return false; }
+    else if(type && r.type!==type) return false;
+    if(onlyCookie && !(r.req_cookies||[]).length) return false;
+    if(kw){
+      const ck=(r.req_cookies||[]).map(c=>c.name+'='+c.value).join(' ');
+      const sck=(r.resp_set_cookies||[]).map(c=>c.name+'='+c.value).join(' ');
+      const hay=[r.url,r.host,r.path,r.req_body,r.resp_body,r.body_error,ck,sck].join(' ').toLowerCase();
+      if(!hay.includes(kw)) return false;
+    }
+    return true;
+  });
+  filtered.sort((a,b)=>{
+    let x=a[sortKey], y=b[sortKey];
+    if(typeof x==='number'&&typeof y==='number') return sortAsc?x-y:y-x;
+    return sortAsc?String(x).localeCompare(String(y)):String(y).localeCompare(String(x));
+  });
+  renderList(); updateBadges();
+}
+function textSelectedIn(root){
+  try{
+    const s=window.getSelection();
+    return s&&!s.isCollapsed&&String(s).trim()&&root&&root.contains(s.anchorNode);
+  }catch(e){ return false; }
+}
+function renderList(){
+  // 用户正在列表里拖选文本时暂停重绘，否则每 0.8 秒轮询会把选区冲掉，无法复制
+  if(textSelectedIn($('tbody'))) return;
+  const tb=$('tbody'), frag=document.createDocumentFragment();
+  const pages=Math.max(1,Math.ceil(filtered.length/capSize));
+  if(capPage>pages) capPage=pages;
+  const shown=filtered.slice((capPage-1)*capSize,capPage*capSize);
+  setPager('cap',capPage,pages,filtered.length);
+  $('capCount').textContent=`(${filtered.length}/${allRows.length})`;
+  $('capEmpty').style.display=allRows.length?'none':'block';
+  for(const r of shown){
+    const tr=document.createElement('tr'); tr.dataset.id=r.id;
+    if(selectedId===r.id) tr.className='sel';
+    const cc=(r.req_cookies||[]).length+(r.resp_set_cookies||[]).length;
+    tr.innerHTML=`<td>${r.id}</td><td>${esc(r.time)}</td><td><span class="m ${esc(r.method)}">${esc(r.method)}</span></td>`+
+      `<td class="${sc(r.status)}">${r.status===-1?'失败':r.status}</td>`+
+      `<td title="${esc(r.host)}">${esc(r.host)}</td>`+
+      `<td title="${esc(r.url)}"><span class="pathlink" data-act="detail">${esc(r.path)}</span></td>`+
+      `<td class="ty-${esc(r.type)}">${esc(r.type)}</td><td>${fmtSize(r.size)}</td><td>${r.duration||0}ms</td>`+
+      `<td>${cc?'<span class="cbadge">'+cc+'</span>':'-'}</td>`+
+      `<td><button class="btn mini" data-act="modal">查看</button></td>`;
+    frag.appendChild(tr);
+  }
+  tb.innerHTML=''; tb.appendChild(frag);
+}
+$('tbody').onclick=e=>{
+  const tr=e.target.closest('tr[data-id]'); if(!tr)return;
+  const id=Number(tr.dataset.id), actEl=e.target.closest('[data-act]');
+  if(actEl && actEl.dataset.act==='modal') return openModal(id);
+  selectRow(id);
+};
+function selectRow(id){
+  selectedId=id; renderList();
+  // 关键修复：轮询快照里的 resp_body 可能是空的，点地址时必须回源取最新详情
+  call('get_detail',id).then(r=>{
+    if(!r) return;
+    const i=allRows.findIndex(x=>x.id===id);
+    if(i>=0) allRows[i]=r;
+    renderDetail($('detailPane'),r,'side');
+  });
+}
+document.querySelectorAll('thead th[data-k]').forEach(th=>th.onclick=()=>{
+  const k=th.dataset.k;
+  if(sortKey===k) sortAsc=!sortAsc; else { sortKey=k; sortAsc=(k!=='id'); }
+  applyFilter();
+});
+['fKw','fHost','fMethod','fStatus','fType'].forEach(id=>$(id).oninput=()=>{capPage=1;applyFilter();});
+$('fCookie').onchange=()=>{capPage=1;applyFilter();};
+$('btnOnlyApi').onclick=()=>{
+  const s=$('fType'); s.value=(s.value==='api'?'':'api'); capPage=1; applyFilter();
+};
+$('btnResetFilter').onclick=()=>{
+  ['fKw','fHost','fMethod','fStatus','fType'].forEach(id=>$(id).value='');
+  $('fCookie').checked=false; capPage=1; applyFilter();
+};
+$('autoFollow').onchange=e=>{ $('setFollow').checked=e.target.checked; savePrefs(); };
+$('btnClear').onclick=()=>call('clear_records').then(m=>{
+  toast(m); allRows=[]; filtered=[]; lastId=0; selectedId=null;
+  $('detailPane').innerHTML=''; applyFilter();
+});
+$('btnExport').onclick=()=>call('export_data',filtered.map(r=>r.id),$('fmt').value).then(toast);
+
+/* ============ 详情面板（抓包/生成/弹窗共用） ============ */
+function detailHTML(r,ns){
+  const reqC=r.req_cookies||[], respC=r.resp_set_cookies||[];
+  return `<div class="detail-head">
+      <div style="font-size:12px"><span class="m ${esc(r.method)}">${esc(r.method)}</span> <span class="${sc(r.status)}">${esc(r.status)}</span> <span class="hint">${pretty(r)}</span></div>
+      <div class="u">${esc(r.url)}</div>
+      <div class="meta">域名：${esc(r.host)}　类型：${esc(r.type)}　MIME：${esc(r.mime||'-')}　时间：${esc(r.time)}</div>
+    </div>
+    ${r.body_error?`<div class="errbox">正文读取失败：${esc(r.body_error)}　可点下方「重新取正文」</div>`:''}
+    ${r.fetch_error?`<div class="errbox">补取失败：${esc(r.fetch_error)}</div>`:''}
+    <div class="detail-acts">
+      <button class="btn mini" data-act="copy" data-v="url">复制 URL</button>
+      <button class="btn mini" data-act="curl">复制 cURL</button>
+      <button class="btn mini ok" data-act="copy" data-v="resp">复制响应</button>
+      <button class="btn mini" data-act="copy" data-v="req">复制请求体</button>
+      <button class="btn mini" data-act="copy" data-v="cookie">复制 Cookie</button>
+      <button class="btn mini" data-act="fetch">重新取正文</button>
+      <button class="btn mini" data-act="edit">✎ 编辑内容</button>
+      <button class="btn mini" data-act="save">保存正文</button>
+      <button class="btn mini" data-act="big">全屏查看</button>
+      <button class="btn mini" data-act="totool">送入工具箱</button>
+      <button class="btn mini" data-act="togrules">用此响应试规则</button>
+    </div>
+    <div class="dtabs">
+      <div class="dtab active" data-tab="resp">响应正文</div>
+      <div class="dtab" data-tab="reqbody">请求正文</div>
+      <div class="dtab" data-tab="cookie">Cookie (${reqC.length+respC.length})</div>
+      <div class="dtab" data-tab="reqh">请求头</div>
+      <div class="dtab" data-tab="resh">响应头</div>
+    </div>
+    <div class="dtool" data-role="respTools">
+      <input data-role="search" placeholder="在响应正文中查找（高亮匹配）">
+      <span class="hint" data-role="hits"></span>
+    </div>
+    <div class="dbody" data-role="tabbody"></div>`;
+}
+function renderDetail(root,r,ns){
+  if(!root)return;
+  root.innerHTML=detailHTML(r,ns);
+  const st={rec:r,root,ns,tab:'resp',editing:false}; detailState[ns]=st;
+  root.querySelectorAll('.dtab').forEach(t=>t.onclick=()=>{
+    st.tab=t.dataset.tab; st.editing=false;
+    root.querySelectorAll('.dtab').forEach(x=>x.classList.toggle('active',x===t));
+    root.querySelector('[data-role="respTools"]').style.display=(st.tab==='resp'?'flex':'none');
+    drawTab(st);
+  });
+  const s=root.querySelector('[data-role="search"]');
+  if(s) s.oninput=()=>drawResp(st);
+  root.onclick=e=>{
+    const b=e.target.closest('[data-act]'); if(!b)return;
+    handleDetailAct(b.dataset.act,b.dataset.v,st);
+  };
+  drawTab(st);
+}
+function highlightJSON(s){
+  try{
+    const json=JSON.stringify(JSON.parse(s),null,2);
+    return esc(json)
+      .replace(/&quot;([^&]*?)&quot;(\s*:)/g,'<span class="jkey">"$1"</span>$2')
+      .replace(/:\s*&quot;(.*?)&quot;/g,': <span class="jstr">"$1"</span>')
+      .replace(/:\s*(-?\d+\.?\d*)/g,': <span class="jnum">$1</span>');
+  }catch(e){ return esc(s); }
+}
+function escMark(s,q){
+  const safe=esc(s);
+  if(!q) return {html:safe,n:0};
+  const eq=esc(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re=new RegExp(eq,'gi'), n=(safe.match(re)||[]).length;
+  return {html:safe.replace(re,m=>'<mark>'+m+'</mark>'),n};
+}
+function drawResp(st){
+  const box=st.root.querySelector('[data-role="tabbody"]'), r=st.rec;
+  const q=(st.root.querySelector('[data-role="search"]').value||'').trim();
+  const hits=st.root.querySelector('[data-role="hits"]');
+  const b=r.resp_body||'';
+  if(!b){
+    hits.textContent='';
+    box.innerHTML=`<div class="blank">没有响应正文（二进制资源或未开启抓取）<br><button class="btn mini" data-act="fetch">重新取正文</button></div>`;
+    return;
+  }
+  if(q){
+    const m=escMark(b,q); hits.textContent=m.n?'匹配 '+m.n+' 处':'没有匹配';
+    box.innerHTML='<pre>'+m.html+'</pre>';
+  }else{
+    hits.textContent='';
+    box.innerHTML='<pre>'+((r.mime||'').includes('json')||looksJSON(b)?highlightJSON(b):esc(b))+'</pre>';
+  }
+}
+function drawTab(st){
+  const box=st.root.querySelector('[data-role="tabbody"]'), r=st.rec;
+  if(st.editing && (st.tab==='resp'||st.tab==='reqbody')){
+    const key=st.tab==='resp'?'resp_body':'req_body';
+    st.root.querySelector('[data-role="respTools"]').style.display='none';
+    box.innerHTML=`<div class="editbar"><b>✎ 编辑${st.tab==='resp'?'响应':'请求'}正文</b>`+
+      `<span class="editnote">可直接修改内容，保存后复制/导出均采用修改后的版本（仅本次运行有效）</span></div>`+
+      `<textarea class="editbox" data-role="editbox" spellcheck="false">${esc(r[key]||'')}</textarea>`+
+      `<div style="display:flex;gap:7px;padding:8px 0"><button class="btn primary" data-act="editsave">保存修改</button>`+
+      `<button class="btn" data-act="editcancel">取消</button></div>`;
+    return;
+  }
+  if(st.tab==='resp') return drawResp(st);
+  if(st.tab==='reqbody'){
+    const b=r.req_body||'';
+    box.innerHTML=b?'<pre>'+(looksJSON(b)?highlightJSON(b):esc(b))+'</pre>':'<div class="blank">该请求没有请求正文</div>';
+  }else if(st.tab==='cookie'){
+    const reqC=r.req_cookies||[], respC=r.resp_set_cookies||[];
+    if(!reqC.length&&!respC.length){ box.innerHTML='<div class="blank">该请求没有 Cookie</div>'; return; }
+    let h='';
+    if(reqC.length){ h+='<div class="hint" style="margin-bottom:7px">请求携带的 Cookie（'+reqC.length+'）</div>';
+      for(const c of reqC) h+=`<div class="ccard"><div class="n">${esc(c.name)}</div><div class="v">${esc(c.value)}</div><div class="m">Domain ${esc(c.domain||'-')} · Path ${esc(c.path||'-')} ${c.httpOnly?'· HttpOnly':''}${c.secure?' · Secure':''}</div></div>`; }
+    if(respC.length){ h+='<div class="hint" style="margin:12px 0 7px">响应设置的 Set-Cookie（'+respC.length+'）</div>';
+      for(const c of respC) h+=`<div class="ccard"><div class="n">${esc(c.name)}</div><div class="v">${esc(c.value)}</div><div class="m">${esc(c.raw||'')}</div></div>`; }
+    box.innerHTML=h;
+  }else if(st.tab==='reqh'||st.tab==='resh'){
+    const h=(st.tab==='reqh'?r.req_headers:r.resp_headers)||{};
+    const keys=Object.keys(h);
+    box.innerHTML=keys.length?'<div class="kv">'+keys.map(k=>`<div class="k">${esc(k)}</div><div class="v">${esc(h[k])}</div>`).join('')+'</div>':'<div class="blank">无'+(st.tab==='reqh'?'请求':'响应')+'头</div>';
+  }
+}
+function handleDetailAct(act,v,st){
+  const r=st.rec;
+  if(act==='copy'){
+    if(v==='url') return copyText(r.url);
+    if(v==='resp') return copyText(r.resp_body);
+    if(v==='req') return copyText(r.req_body);
+    if(v==='cookie') return copyText(JSON.stringify({请求Cookie:r.req_cookies||[],响应SetCookie:r.resp_set_cookies||[]},null,2));
+  }
+  if(act==='curl') return call('get_curl',r.id).then(c=>{ if(c)copyText(c); });
+  if(act==='edit'){
+    if(st.tab!=='resp'&&st.tab!=='reqbody') return toast('请先切到「响应正文」或「请求正文」再编辑');
+    st.editing=true; drawTab(st); return;
+  }
+  if(act==='editcancel'){ st.editing=false; drawTab(st); return; }
+  if(act==='editsave'){
+    const box=st.root.querySelector('[data-role="editbox"]'); if(!box)return;
+    const field=st.tab==='reqbody'?'req':'resp';
+    return call('update_body',r.id,box.value,field).then(nr=>{
+      if(!nr) return toast('保存失败：记录不存在');
+      st.rec=nr; st.editing=false;
+      const i=allRows.findIndex(x=>x.id===nr.id); if(i>=0) allRows[i]=nr;
+      drawTab(st); toast('已修改正文，复制/导出将使用新内容 ✓');
+    });
+  }
+  if(act==='save') return call('save_body',r.id).then(toast);
+  if(act==='big') return openModal(r.id);
+  if(act==='fetch'){
+    toast('正在重新获取正文…');
+    return call('fetch_body',r.id).then(nr=>{
+      if(!nr) return toast('记录已不存在');
+      const i=allRows.findIndex(x=>x.id===nr.id); if(i>=0) allRows[i]=nr;
+      renderDetail(st.root,nr,st.ns);
+      toast(nr.resp_body?'已取到 '+nr.resp_body.length+' 字正文':'仍然没有正文，可能浏览器已关闭或资源不可读');
+    });
+  }
+  if(act==='totool'){
+    $('toolInput').value=r.resp_body||r.req_body||''; updateToolStat(); switchView('tools');
+    return toast('已把正文送入工具箱');
+  }
+  if(act==='togrules'){
+    sampleId=r.id; switchView('rules'); loadSamples();
+    $('sampleSel').value=String(r.id); sampleId=r.id; renderSampleKeys();
+    toast('已设为样例响应，可点字段填入规则');
+  }
+}
+function openModal(id){
+  $('respModal').classList.add('show');
+  $('modalBody').innerHTML='<div class="blank">加载中…</div>';
+  call('get_detail',id).then(r=>{ if(r) renderDetail($('modalBody'),r,'modal'); else $('modalBody').innerHTML='<div class="blank">记录不存在</div>'; });
+}
+function closeModal(){
+  $('respModal').classList.remove('show');
+  if(detailState.modal) delete detailState.modal;
+}
+$('modalClose').onclick=closeModal;
+$('respModal').onclick=e=>{ if(e.target===$('respModal')) closeModal(); };
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){
+  closeModal(); $('bmModal').classList.remove('show'); $('navModal').classList.remove('show');
+} });
+
+/* ============ 规则 ============ */
+function loadSamples(){
+  const cands=allRows.filter(r=>r.resp_body&&(looksJSON(r.resp_body)||String(r.mime||'').includes('json'))).slice(-50).reverse();
+  const sel=$('sampleSel'), prev=String(sel.value||'');
+  sel.innerHTML=cands.length?cands.map(r=>`<option value="${r.id}">#${r.id} ${esc(r.method)} ${esc(String(r.path||'').slice(0,64))}</option>`).join(''):'<option value="">暂无 JSON 响应样例</option>';
+  if(prev && cands.some(r=>String(r.id)===prev)) sel.value=prev;
+  sampleId=Number(sel.value)||0;
+  $('sampleInfo').textContent=sampleId?'当前样例 #'+sampleId:'抓到 JSON 响应后自动可选';
+  renderSampleKeys();
+}
+$('sampleSel').onchange=()=>{
+  sampleId=Number($('sampleSel').value)||0;
+  $('sampleInfo').textContent=sampleId?'当前样例 #'+sampleId:'抓到 JSON 响应后自动可选';
+  renderSampleKeys();
+};
+$('btnSampleRefresh').onclick=()=>loadSamples();
+function renderSampleKeys(){
+  const box=$('sampleKeys');
+  if(!sampleId){ box.innerHTML='<span class="hint">点字段名可直接填入当前编辑的规则</span>'; return; }
+  call('sample_keys',sampleId).then(keys=>{
+    box.innerHTML=(keys&&keys.length)?keys.map(k=>`<button class="chip" data-k="${esc(k)}">${esc(k)}</button>`).join(''):'<span class="hint">未在样例中解析出字段</span>';
+  });
+}
+$('sampleKeys').onclick=e=>{
+  const c=e.target.closest('.chip'); if(!c||!rules[activeRule])return;
+  rules[activeRule].target_key=c.dataset.k;
+  call('save_rules',rules).then(()=>{ renderRules(); toast('已填入字段：'+c.dataset.k); });
+};
+function renderRules(){
+  const box=$('ruleCards');
+  if(!rules.length){
+    box.innerHTML='<div class="blank">还没有规则，点下面按钮添加<br>例如：接口关键字 findNoticesBynotices，字段名 id，前缀公告详情地址</div>';
+  }else{
+    box.innerHTML=rules.map((r,i)=>`
+      <div class="rulecard ${r.enabled?'':'off'}">
+        <div class="rulehead">
+          <span class="rn">规则 ${i+1}</span>
+          <input type="text" value="${esc(r.name||'')}" placeholder="规则名称" onchange="ruleChange(${i},'name',this.value)">
+          <label class="chk"><input type="checkbox" ${r.enabled?'checked':''} onchange="ruleChange(${i},'enabled',this.checked)">启用</label>
+          <button class="btn mini" data-act="preview" data-i="${i}">试运行</button>
+          <button class="btn mini" data-act="del" data-i="${i}" style="color:var(--err)">删除</button>
+        </div>
+        <div class="rgrid">
+          <div class="fld full"><label>接口 URL 关键字（逗号分隔，留空=匹配所有）</label>
+            <input type="text" value="${esc(r.url_match||'')}" placeholder="如 findNoticesBynotices" onchange="ruleChange(${i},'url_match',this.value)"></div>
+          <div class="fld"><label>目标字段名（点上方字段可自动填入）</label>
+            <input type="text" value="${esc(r.target_key||'')}" placeholder="如 id / noticeId / url" onfocus="activeRule=${i}" onchange="ruleChange(${i},'target_key',this.value)"></div>
+          <div class="fld"><label>请求方法</label>
+            <select onchange="ruleChange(${i},'method',this.value)">
+              <option value="" ${!r.method?'selected':''}>不限</option>
+              <option value="GET" ${r.method==='GET'?'selected':''}>GET</option>
+              <option value="POST" ${r.method==='POST'?'selected':''}>POST</option>
+            </select></div>
+          <div class="fld"><label>前缀</label><input type="text" value="${esc(r.prefix||'')}" placeholder="https://example.com/detail?id=" onchange="ruleChange(${i},'prefix',this.value)"></div>
+          <div class="fld"><label>后缀</label><input type="text" value="${esc(r.suffix||'')}" placeholder="可留空" onchange="ruleChange(${i},'suffix',this.value)"></div>
+          <div class="fld full">
+            <label class="chk"><input type="checkbox" ${r.dedupe!==false?'checked':''} onchange="ruleChange(${i},'dedupe',this.checked)">自动去重</label>
+            <div class="hint" style="margin-top:5px">预览：${esc(r.prefix||'')}{${esc(r.target_key||'字段值')}}${esc(r.suffix||'')}</div>
+          </div>
+        </div>
+        <div class="preview" id="rp_${i}"><span class="hint">点「试运行」用当前样例响应验证这条规则</span></div>
+      </div>`).join('');
+  }
+  updateBadges();
+}
+$('ruleCards').onclick=e=>{
+  const b=e.target.closest('[data-act]'); if(!b)return;
+  const i=Number(b.dataset.i);
+  if(b.dataset.act==='del'){
+    rules.splice(i,1); call('save_rules',rules).then(m=>{toast(m);renderRules();});
+  }else if(b.dataset.act==='preview'){
+    if(!sampleId) return toast('请先在上方选择一条样例响应');
+    if(!rules[i]) return;
+    call('preview_rule',rules[i],sampleId).then(vals=>{
+      const box=$('rp_'+i); if(!box)return;
+      box.innerHTML=(vals&&vals.length)?`<b>${vals.length}</b> 个结果：`+vals.slice(0,8).map(v=>`<code>${esc(v)}</code>`).join('')+(vals.length>8?' …':''):'<span class="hint" style="color:var(--err)">没有匹配到字段：检查接口关键字和字段名</span>';
+    });
+  }
+};
+function ruleChange(i,k,v){
+  if(!rules[i])return;
+  rules[i][k]=v;
+  call('save_rules',rules).then(()=>{
+    updateBadges();
+    const card=$('ruleCards').children[i];
+    if(card) card.classList.toggle('off',!rules[i].enabled);
+    $('ruleSaveHint').textContent='已保存 · '+new Date().toLocaleTimeString();
+  });
+}
+$('btnAddRule').onclick=()=>{
+  rules.push({name:'新规则',enabled:true,url_match:'',method:'',target_key:'',prefix:'',suffix:'',dedupe:true});
+  activeRule=rules.length-1;
+  call('save_rules',rules).then(()=>{renderRules();toast('已添加规则');});
+};
+$('btnSaveRules').onclick=()=>call('save_rules',rules).then(m=>{toast(m);$('ruleSaveHint').textContent='已保存 · '+new Date().toLocaleTimeString();});
+$('btnOpenRules').onclick=()=>call('open_rules_dir').then(toast);
+
+/* ============ 生成结果 ============ */
+function populateGenRules(){
+  const sel=$('genRuleFilter'), prev=sel.value;
+  const names=[...new Set(genRows.map(g=>g.rule).filter(Boolean))];
+  sel.innerHTML='<option value="">全部规则</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  if(names.includes(prev)) sel.value=prev;
+}
+function applyGenFilter(reset=true){
+  const rule=$('genRuleFilter').value, kw=$('genKw').value.trim().toLowerCase();
+  genFiltered=genRows.filter(g=>(!rule||g.rule===rule)&&(!kw||[g.output,g.value,g.key,g.rule].join(' ').toLowerCase().includes(kw)));
+  if(reset) genPage=1;
+  renderGen(); updateBadges();
+}
+$('genRuleFilter').onchange=()=>applyGenFilter();
+$('genKw').oninput=()=>applyGenFilter();
+function renderGen(){
+  if(textSelectedIn($('genTbody'))) return;  // 正在选文本时不重绘
+  const tb=$('genTbody'), frag=document.createDocumentFragment();
+  const pages=Math.max(1,Math.ceil(genFiltered.length/genSize));
+  if(genPage>pages) genPage=pages;
+  const shown=genFiltered.slice((genPage-1)*genSize,genPage*genSize);
+  setPager('gen',genPage,pages,genFiltered.length);
+  $('genEmpty').style.display=genRows.length?'none':'block';
+  for(const g of shown){
+    const tr=document.createElement('tr'); tr.dataset.id=g.id; tr.className='gentd';
+    tr.innerHTML=`<td><input type="checkbox" data-act="sel" ${selectedGenIds.has(g.id)?'checked':''}></td>`+
+      `<td>${g.id}</td><td title="${esc(g.rule)}">${esc(g.rule)}</td>`+
+      `<td title="${esc(g.output)}"><span class="out" data-act="source">${esc(g.output)}</span></td>`+
+      `<td title="${esc(g.value)}">${esc(g.value)}</td><td>${esc(g.time)}</td>`;
+    frag.appendChild(tr);
+  }
+  tb.innerHTML=''; tb.appendChild(frag);
+}
+$('genTbody').onclick=e=>{
+  const tr=e.target.closest('tr[data-id]'); if(!tr)return;
+  const g=genRows.find(x=>x.id===Number(tr.dataset.id)); if(!g)return;
+  const act=e.target.closest('[data-act]');
+  if(act&&act.dataset.act==='sel'){
+    if(e.target.checked) selectedGenIds.add(g.id); else selectedGenIds.delete(g.id);
+    return;
+  }
+  // 点地址 -> 回源取该生成结果对应的原始响应，直接在右侧查看
+  call('get_detail',g.source_id).then(r=>{
+    if(!r) return toast('来源请求已不在记录中（可尝试重新处理历史）');
+    const i=allRows.findIndex(x=>x.id===r.id); if(i>=0) allRows[i]=r;
+    const head=`<div style="padding:10px 12px;background:rgba(124,58,237,.08);border-bottom:1px solid var(--border);font-size:11px;line-height:1.9">`+
+      `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="hint">生成地址：</span>`+
+      `<button class="btn mini" id="btnGenEdit">✎ 编辑</button><button class="btn mini ok" id="btnGenCopy">复制</button>`+
+      `<button class="btn mini primary" id="btnGenOpen">在系统浏览器打开</button>`+
+      `<button class="btn mini" id="btnGenOpenCap">在抓包浏览器打开</button>`+
+      `<button class="btn mini" id="btnGenTool">送入工具箱</button></div>`+
+      `<div id="genOutBox" style="word-break:break-all"><b style="color:var(--primary)">${esc(g.output)}</b></div>`+
+      `<div><span class="hint">规则：</span>${esc(g.rule)}　<span class="hint">字段：</span>${esc(g.key)}　<span class="hint">原始值：</span><code>${esc(g.value)}</code></div>`+
+      `</div>`;
+    $('genDetailPane').innerHTML=head+'<div id="genDetailInner" style="flex:1;display:flex;flex-direction:column;min-height:0"></div>';
+    // 生成结果支持手动编辑与复制（必须先插入 DOM 再绑定事件）
+    $('btnGenCopy').onclick=()=>copyText(g.output);
+    $('btnGenOpen').onclick=()=>call('open_in_browser',g.output).then(toast);
+    $('btnGenOpenCap').onclick=()=>{
+      if(!captureOn) return toast('请先开始抓包');
+      call('goto',g.output).then(toast);
+    };
+    $('btnGenTool').onclick=()=>{ $('toolInput').value=g.output; updateToolStat(); switchView('tools'); toast('已送入工具箱'); };
+    $('btnGenEdit').onclick=()=>{
+      const box=$('genOutBox');
+      box.innerHTML=`<div class="genedit"><input type="text" id="genEditInput" value="${esc(g.output)}">`+
+        `<button class="btn mini primary" id="genEditSave">保存</button><button class="btn mini" id="genEditCancel">取消</button></div>`;
+      const inp=$('genEditInput'); inp.focus(); inp.select();
+      $('genEditCancel').onclick=()=>{ box.innerHTML=`<b style="color:var(--primary)">${esc(g.output)}</b>`; };
+      $('genEditSave').onclick=()=>call('update_generated',g.id,inp.value).then(ng=>{
+        if(!ng) return toast('修改失败');
+        const i=genRows.findIndex(x=>x.id===ng.id); if(i>=0) genRows[i]=ng;
+        applyGenFilter(false); renderGen();
+        box.innerHTML=`<b style="color:var(--primary)">${esc(ng.output)}</b>`;
+        toast('生成地址已修改，复制/导出将使用新内容 ✓');
+      });
+    };
+    renderDetail($('genDetailInner'),r,'gen');
+  });
+};
+$('btnReprocess').onclick=()=>call('reprocess').then(m=>{toast(m);poll();});
+$('btnGenCopySel').onclick=()=>{
+  const rows=genRows.filter(g=>selectedGenIds.has(g.id));
+  if(!rows.length) return toast('请先勾选要复制的结果');
+  copyText(rows.map(g=>g.output).join('\n'));
+};
+$('btnGenCopyAll').onclick=()=>copyText(genFiltered.map(g=>g.output).join('\n'));
+$('btnGenOpenAll').onclick=()=>{
+  const rows=genRows.filter(g=>selectedGenIds.has(g.id));
+  if(!rows.length) return toast('请先勾选要打开的地址（避免一次开太多）');
+  if(rows.length>20) return toast('一次最多打开 20 个，请先缩小勾选范围');
+  let n=0; rows.forEach(g=>call('open_in_browser',g.output).then(m=>{ if(String(m).includes('已')) n++; }));
+  toast('正在打开 '+rows.length+' 个地址…');
+};
+$('btnGenToolAll').onclick=()=>{
+  const rows=selectedGenIds.size?genRows.filter(g=>selectedGenIds.has(g.id)):genFiltered;
+  $('toolInput').value=rows.map(g=>g.output).join('\n'); updateToolStat(); switchView('tools');
+  toast('已送入 '+rows.length+' 条地址到工具箱');
+};
+$('btnGenClear').onclick=()=>call('clear_generated').then(m=>{
+  toast(m); genRows=[]; genFiltered=[]; lastGenId=0; selectedGenIds.clear();
+  $('genDetailPane').innerHTML=''; populateGenRules(); applyGenFilter();
+});
+$('btnGenExport').onclick=()=>call('export_generated',[],$('genFmt').value).then(toast);
+['genFirst','genPrev','genNext','genLast'].forEach((id,i)=>{
+  $(id).onclick=()=>{ genPage=[1,Math.max(1,genPage-1),genPage+1,999999][i]; renderGen(); };
+});
+$('genSize').onchange=e=>{genSize=Number(e.target.value);genPage=1;renderGen();};
+['capFirst','capPrev','capNext','capLast'].forEach((id,i)=>{
+  $(id).onclick=()=>{ capPage=[1,Math.max(1,capPage-1),capPage+1,999999][i]; renderList(); };
+});
+$('capSize').onchange=e=>{capSize=Number(e.target.value);capPage=1;renderList();savePrefs();};
+
+/* ============ 总览 ============ */
+function renderDash(){
+  const d=diagCache||{};
+  const cards=[
+    ['a','抓到请求',allRows.length],['b','有响应正文',d.with_body||0],
+    ['c','生成结果',genRows.length],['d','正文失败',d.body_fail||0]
+  ];
+  $('dashCards').innerHTML=cards.map(c=>`<div class="card ${c[0]}"><div class="lbl">${c[1]}</div><div class="num">${c[2]}</div></div>`).join('');
+  const items=[['请求',d.records||0],['响应',d.responses||0],['有正文',d.with_body||0],['正文失败',d.body_fail||0],
+    ['命中规则',d.matched||0],['JSON 解析成功',d.json_ok||0],['非 JSON 响应',d.json_fail||0],['字段未找到',d.no_key||0],['已生成',d.generated||0]];
+  $('dashDiag').innerHTML=items.map(x=>`<div class="diagline"><span>${x[0]}</span><span>${x[1]}</span></div>`).join('');
+  const recent=genRows.slice(-6).reverse();
+  $('dashRecent').innerHTML=recent.length?recent.map(g=>`<div>· ${esc(g.output)}</div>`).join(''):'<div class="hint">暂无生成结果</div>';
+}
+
+/* ============ 抓包控制 / 轮询 ============ */
+function setCapture(on,msg){
+  captureOn=on;
+  const b=$('btnToggle');
+  b.textContent=on?'■ 停止抓包':'▶ 开始抓包';
+  b.className=on?'btn warn':'btn primary';
+  $('btnAttach').disabled=on; $('btnGo').disabled=!on;
+  $('statusPill').classList.toggle('on',on);
+  $('statusText').textContent=on?'抓包中':'已停止';
+  $('stState').textContent=on?'抓包中':'已停止';
+  if(msg) toast(msg);
+}
+$('btnToggle').onclick=()=>{
+  if(captureOn) call('stop_browser').then(m=>{clearInterval(pollTimer);pollTimer=null;setCapture(false,m);});
+  else call('start_browser',0).then(m=>{
+    if(String(m).includes('已启动')){ setCapture(true,m); startPoll(); }
+    else toast(m);
+  });
+};
+$('btnAttach').onclick=()=>{
+  const p=parseInt($('attachPort').value||'9222',10);
+  call('start_browser',p).then(m=>{
+    if(String(m).includes('已附加')){ setCapture(true,m); startPoll(); }
+    else toast(m+'。请先运行「以调试模式启动Chrome.bat」');
+  });
+};
+function doGo(){ const u=$('url').value.trim(); if(u) call('goto',u).then(toast); }
+$('btnGo').onclick=doGo;
+$('url').onkeydown=e=>{if(e.key==='Enter')doGo();};
+
+function poll(){
+  call('get_records',lastId).then(rows=>{
+    if(rows&&rows.length){
+      allRows.push(...rows); lastId=Math.max(...rows.map(r=>r.id));
+      applyFilter();
+      if($('autoFollow').checked){ capPage=Math.ceil(filtered.length/capSize)||1; renderList(); }
+      if(selectedId==null && filtered.length) selectRow(filtered[filtered.length-1].id);
+    }
+  });
+  call('get_generated',lastGenId).then(rows=>{
+    if(rows&&rows.length){
+      genRows.push(...rows); lastGenId=Math.max(...rows.map(r=>r.id));
+      populateGenRules(); applyGenFilter(false); updateBadges();
+    }
+  });
+  call('get_diag').then(d=>{
+    if(!d)return; diagCache=d;
+    if(curView==='dash') renderDash();
+    if(curView==='gen'){
+      const e=(d.errors&&d.errors.length)?' · '+esc(d.errors[d.errors.length-1]):'';
+      $('diagInfo').innerHTML=`诊断：请求 <b>${d.records}</b> · 响应 <b>${d.responses}</b> · 有正文 <b>${d.with_body}</b> · 正文失败 <b>${d.body_fail}</b> · 命中规则 <b>${d.matched}</b> · JSON成功 <b>${d.json_ok}</b> · 非JSON <b>${d.json_fail}</b> · 字段未找到 <b>${d.no_key}</b> · 生成 <b>${d.generated}</b>${e}`;
+    }
+  });
+}
+function startPoll(){ if(!pollTimer){ poll(); pollTimer=setInterval(poll,800); } }
+
+/* ============ 预设网址书签 ============ */
+let bookmarks=[];
+function renderBookmarks(){
+  $('bmList').innerHTML=bookmarks.length
+    ? bookmarks.map((b,i)=>`<span class="bmchip" data-i="${i}" title="${esc(b.url)}">${esc(b.name||b.url)}</span>`).join(' ')
+    : '<span class="hint">还没有预设网址，点右侧「管理」添加</span>';
+}
+$('bmList').onclick=e=>{
+  const c=e.target.closest('.bmchip'); if(!c)return;
+  const b=bookmarks[Number(c.dataset.i)]; if(!b)return;
+  if(!captureOn) return toast('请先点顶部「开始抓包」或「附加已开浏览器」');
+  call('goto',b.url).then(()=>toast('已在抓包浏览器打开：'+(b.name||b.url)));
+};
+function renderBmRows(rows){
+  $('bmRows').innerHTML=rows.map((b,i)=>
+    `<div class="formrow" data-i="${i}"><span class="lb">第${i+1}个</span>`+
+    `<input class="f1 bmName" placeholder="标题，如 bing.com" value="${esc(b.name||'')}">`+
+    `<input class="f2 bmUrl" placeholder="网址，如 https://bing.com" value="${esc(b.url||'')}">`+
+    `<button class="btn mini bmDel" title="删除这一行">✕</button></div>`).join('');
+}
+$('bmEdit').onclick=()=>{
+  renderBmRows(bookmarks.length?bookmarks:[{name:'',url:''}]);
+  $('bmModal').classList.add('show');
+};
+$('bmCancel').onclick=()=>$('bmModal').classList.remove('show');
+$('bmModal').onclick=e=>{ if(e.target===$('bmModal')) $('bmModal').classList.remove('show'); };
+$('bmAdd').onclick=()=>{
+  const rows=[...$('bmRows').children].map(r=>({name:r.querySelector('.bmName').value,url:r.querySelector('.bmUrl').value}));
+  rows.push({name:'',url:''}); renderBmRows(rows);
+  const ins=$('bmRows').querySelectorAll('.bmName'); if(ins.length) ins[ins.length-1].focus();
+};
+$('bmRows').onclick=e=>{
+  const btn=e.target.closest('.bmDel'); if(!btn)return;
+  const rows=[...$('bmRows').children].map(r=>({name:r.querySelector('.bmName').value,url:r.querySelector('.bmUrl').value}));
+  rows.splice(Number(btn.parentElement.dataset.i),1); renderBmRows(rows);
+};
+$('bmSave').onclick=()=>{
+  const list=[...$('bmRows').children].map(r=>({
+    name:r.querySelector('.bmName').value.trim(), url:r.querySelector('.bmUrl').value.trim()
+  })).filter(b=>b.url);
+  call('save_bookmarks',list).then(m=>{
+    toast(m);
+    call('get_bookmarks').then(b=>{bookmarks=Array.isArray(b)?b:[];renderBookmarks();});
+    $('bmModal').classList.remove('show');
+  });
+};
+
+/* ============ 工具导航 ============ */
+function navFiltered(){
+  const q=(navKeyword||'').trim().toLowerCase();
+  return navTools.filter(t=>{
+    if(navCat!=='全部' && (t.cat||'未分类')!==navCat) return false;
+    if(!q) return true;
+    return [t.name,t.cat,t.url,t.desc,t.tip].join(' ').toLowerCase().indexOf(q)>=0;
+  });
+}
+function renderNavCats(){
+  const counts={};
+  navTools.forEach(t=>{ const c=t.cat||'未分类'; counts[c]=(counts[c]||0)+1; });
+  if(navCat!=='全部' && !counts[navCat]) navCat='全部';
+  const cats=['全部'].concat(Object.keys(counts));
+  $('navCats').innerHTML=cats.map(c=>
+    `<button data-cat="${esc(c)}" class="${navCat===c?'on':''}">${esc(c)} ${c==='全部'?navTools.length:counts[c]}</button>`).join('');
+  $('navCatList').innerHTML=Object.keys(counts).map(c=>`<option value="${esc(c)}"></option>`).join('');
+  $('navCount').textContent=navFiltered().length;
+}
+$('navCats').onclick=e=>{
+  const b=e.target.closest('button[data-cat]'); if(!b)return;
+  navCat=b.dataset.cat; navSel=-1;
+  renderNavCats(); renderNavGrid(); renderNavDetail();
+};
+function renderNavGrid(){
+  const list=navFiltered();
+  $('navGrid').innerHTML=list.length?list.map(t=>{
+    const i=navTools.indexOf(t), d=t.desc||'';
+    return `<div class="navcard ${i===navSel?'on':''}" data-i="${i}">`+
+      `<span class="nc">${esc(t.cat||'未分类')}</span><b>${esc(t.name||t.url||'未命名')}</b>`+
+      `<div class="nu">${esc(t.url||'')}</div>`+
+      `<div class="hint" style="margin-top:5px;line-height:1.5">${esc(d.slice(0,42))}${d.length>42?'…':''}</div></div>`;
+  }).join(''):'<div class="blank">没有匹配的工具<br>换个关键词或分类试试</div>';
+}
+$('navGrid').onclick=e=>{
+  const c=e.target.closest('.navcard'); if(!c)return;
+  navSel=Number(c.dataset.i); renderNavGrid(); renderNavDetail();
+};
+function renderNavDetail(){
+  const box=$('navDetail'), t=navTools[navSel];
+  if(!t){ box.innerHTML='<div class="blank">点左侧任意工具卡片<br>查看简介、网址与使用建议</div>'; return; }
+  const url=t.url||'';
+  box.innerHTML=`<h2>${esc(t.name||url)}</h2>`+
+    `<div class="ndmeta"><span class="chip">${esc(t.cat||'未分类')}</span><span class="hint">第 ${navSel+1} / ${navTools.length} 个</span></div>`+
+    (t.desc?`<div class="ndsec"><div class="k">工具简介</div><div class="v">${esc(t.desc)}</div></div>`:'')+
+    `<div class="ndsec"><div class="k">访问地址</div><div class="ndurl">${esc(url)}</div></div>`+
+    (t.tip?`<div class="ndsec"><div class="k">使用建议</div><div class="v">${esc(t.tip)}</div></div>`:'')+
+    `<div class="ndacts">`+
+      `<button class="btn mini primary" id="navOpenSys">在系统浏览器打开</button>`+
+      `<button class="btn mini" id="navOpenCap">在抓包浏览器打开</button>`+
+      `<button class="btn mini" id="navCopy">复制网址</button>`+
+      `<button class="btn mini" id="navEdit">✎ 编辑</button>`+
+      `<button class="btn mini warn" id="navDel">删除</button>`+
+    `</div>`;
+  $('navOpenSys').onclick=()=>call('open_in_browser',url).then(toast);
+  $('navOpenCap').onclick=()=>{
+    if(!captureOn) return toast('请先点顶部「开始抓包」或「附加已开浏览器」');
+    call('goto',url).then(()=>toast('已在抓包浏览器打开'));
+  };
+  $('navCopy').onclick=()=>copyText(url);
+  $('navEdit').onclick=()=>openNavForm(navSel);
+  $('navDel').onclick=()=>{
+    if(!window.confirm('确定删除「'+(t.name||url)+'」吗？')) return;
+    navTools.splice(navSel,1); navSel=-1;
+    call('save_nav_tools',navTools).then(m=>{toast(m);renderNavCats();renderNavGrid();renderNavDetail();});
+  };
+}
+$('navSearch').oninput=e=>{
+  navKeyword=e.target.value||''; navSel=-1;
+  $('navCount').textContent=navFiltered().length;
+  renderNavGrid(); renderNavDetail();
+};
+function openNavForm(idx){
+  const t=idx>=0?navTools[idx]:{name:'',cat:'',url:'',desc:'',tip:''};
+  $('navEditIdx').value=String(idx);
+  $('navFName').value=t.name||''; $('navFCat').value=t.cat||''; $('navFUrl').value=t.url||'';
+  $('navFDesc').value=t.desc||''; $('navFTip').value=t.tip||'';
+  $('navModalTitle').textContent=idx>=0?'编辑工具':'添加工具';
+  $('navModal').classList.add('show');
+}
+$('navAdd').onclick=()=>openNavForm(-1);
+$('navModalCancel').onclick=()=>$('navModal').classList.remove('show');
+$('navModal').onclick=e=>{ if(e.target===$('navModal')) $('navModal').classList.remove('show'); };
+$('navModalSave').onclick=()=>{
+  const name=$('navFName').value.trim(), url=$('navFUrl').value.trim();
+  if(!name||!url) return toast('名称与网址不能为空');
+  let u=url; if(!/^(https?:\/\/|file:\/\/)/i.test(u)) u='https://'+u;
+  const t={name,cat:$('navFCat').value.trim()||'其他工具',url:u,
+           desc:$('navFDesc').value.trim(),tip:$('navFTip').value.trim()};
+  const idx=Number($('navEditIdx').value);
+  if(idx>=0&&navTools[idx]) navTools[idx]=t; else { navTools.push(t); navSel=navTools.length-1; }
+  call('save_nav_tools',navTools).then(m=>{
+    toast(m); $('navModal').classList.remove('show');
+    navCat='全部'; navKeyword=''; $('navSearch').value='';
+    renderNavCats(); renderNavGrid(); renderNavDetail();
+  });
+};
+$('navReset').onclick=()=>{
+  if(!window.confirm('恢复内置的推荐工具清单？你自定义添加的工具会被覆盖。')) return;
+  call('reset_nav_tools').then(m=>{
+    toast(m);
+    call('get_nav_tools').then(t=>{
+      navTools=Array.isArray(t)?t:[]; navCat='全部'; navKeyword=''; navSel=-1; $('navSearch').value='';
+      renderNavCats(); renderNavGrid(); renderNavDetail();
+    });
+  });
+};
+
+/* ============ 数据处理工具箱 ============ */
+const BUILTIN_TOOLS=[
+  {id:'jsonfmt',label:'JSON 格式化 / 美化'},
+  {id:'jsonkeys',label:'JSON 列出全部字段名'},
+  {id:'jsonextract',label:'JSON 按字段名提取值'},
+  {id:'regex',label:'正则提取 / 替换'},
+  {id:'prefix',label:'批量加前后缀'},
+  {id:'dedupe',label:'去重 + 排序'},
+  {id:'urls',label:'提取文本里的网址'},
+  {id:'split',label:'按行拆分 / 合并'},
+  {id:'base64',label:'Base64 编码 / 解码'},
+  {id:'count',label:'统计行数 / 字数'},
+];
+let curTool='jsonfmt', extTools=[];
+function renderToolGrid(){
+  $('toolGrid').innerHTML=BUILTIN_TOOLS.map(t=>
+    `<button class="${curTool===t.id?'on':''}" data-id="${t.id}">${esc(t.label)}</button>`).join('')+
+    extTools.map((t,i)=>`<button class="exttool ${curTool==='ext'+i?'on':''}" data-id="ext${i}" data-i="${i}">⚙ ${esc(t.name||'外部工具'+(i+1))}</button>`).join('');
+}
+function renderToolParams(){
+  const box=$('toolParams');
+  if(curTool==='jsonextract') box.innerHTML='<span class="hint">字段名</span><input id="toolKey" placeholder="如 id / url / title">';
+  else if(curTool==='regex') box.innerHTML='<span class="hint">正则</span><input id="toolRe" placeholder="正则表达式">'+
+    '<span class="hint">替换为</span><input id="toolRep" placeholder="留空=只提取匹配；$1=分组" style="max-width:130px">'+
+    '<label class="chk"><input type="checkbox" id="toolReGlobal" checked>全局</label>';
+  else if(curTool==='prefix') box.innerHTML='<span class="hint">前缀</span><input id="toolPre" placeholder="https://…">'+
+    '<span class="hint">后缀</span><input id="toolSuf" placeholder="可留空" style="max-width:120px">';
+  else if(curTool==='base64') box.innerHTML='<label class="chk"><input type="checkbox" id="toolB64Dec">解码（默认编码）</label>';
+  else if(String(curTool).startsWith('ext')){
+    const t=extTools[Number(String(curTool).slice(3))]||{};
+    box.innerHTML=`<span class="hint" style="flex:1">将输入文本存为临时文件，执行：<code>${esc(t.cmd||'')}</code></span>`+
+      `<select id="toolExtFor"><option>.txt</option><option>.py</option><option>.json</option><option>.csv</option><option>.html</option></select>`;
+  }
+  else box.innerHTML='<span class="hint">此工具无需参数，点下方按钮执行</span>';
+}
+$('toolGrid').onclick=e=>{
+  const b=e.target.closest('button[data-id]'); if(!b)return;
+  curTool=b.dataset.id; renderToolGrid(); renderToolParams();
+};
+function updateToolStat(){
+  const v=$('toolInput').value; $('toolStat').textContent=v.length+' 字符 · '+(v?v.split('\n').length:0)+' 行';
+}
+$('toolInput').oninput=updateToolStat;
+$('toolClear').onclick=()=>{ $('toolInput').value=''; $('toolOutput').value=''; updateToolStat(); };
+$('toolFromSel').onclick=()=>{
+  const s=(window.getSelection()||'').toString();
+  if(s.trim()){ $('toolInput').value=s.trim(); updateToolStat(); return toast('已取选中的文字'); }
+  call('read_clipboard').then(t=>{ if(t){$('toolInput').value=t;updateToolStat();toast('已取剪贴板内容');} else toast('剪贴板为空，也没有选中文字'); });
+};
+$('toolFromResp').onclick=()=>{
+  const st=detailState.capture;
+  if(st&&st.rec&&st.rec.resp_body){ $('toolInput').value=st.rec.resp_body; updateToolStat(); toast('已载入详情响应'); }
+  else toast('请先在抓包页点一条请求');
+};
+$('toolFromGen').onclick=()=>{ $('toolInput').value=genFiltered.map(g=>g.output).join('\n'); updateToolStat(); toast('已载入 '+genFiltered.length+' 条生成地址'); };
+
+function collectJSONValues(obj,key,path,out){
+  if(Array.isArray(obj)){ obj.forEach((v,i)=>collectJSONValues(v,key,path+'['+i+']',out)); return; }
+  if(obj&&typeof obj==='object'){
+    Object.keys(obj).forEach(k=>{
+      const p=path?path+'.'+k:k;
+      if(k===key) out.push({path:p,value:obj[k]});
+      collectJSONValues(obj[k],key,p,out);
+    });
+  }
+}
+function runTool(){
+  const input=$('toolInput').value, out=$('toolOutput');
+  if(!input.trim() && !String(curTool).startsWith('ext')) return toast('请先输入或载入文本');
+  let result='';
+  try{
+    if(curTool==='jsonfmt'){
+      const o=JSON.parse(input); result=JSON.stringify(o,null,2);
+    }else if(curTool==='jsonkeys'){
+      const o=JSON.parse(input), keys=new Set();
+      (function walk(x){ if(Array.isArray(x))x.forEach(walk); else if(x&&typeof x==='object')Object.keys(x).forEach(k=>{keys.add(k);walk(x[k]);}); })(o);
+      result=[...keys].join('\n');
+    }else if(curTool==='jsonextract'){
+      const key=($('toolKey').value||'').trim(); if(!key)return toast('请填字段名');
+      const o=JSON.parse(input), arr=[]; collectJSONValues(o,key,'',arr);
+      result=arr.map(x=>typeof x.value==='object'?JSON.stringify(x.value):String(x.value)).join('\n');
+      if(!result) result='(未找到字段 '+key+')';
+    }else if(curTool==='regex'){
+      const pat=($('toolRe').value||'').trim(); if(!pat)return toast('请填正则表达式');
+      const flags='i'+($('toolReGlobal').checked?'g':''), re=new RegExp(pat,flags);
+      const rep=$('toolRep').value;
+      result=rep!==''?input.replace(re,rep):(input.match(re)||[]).join('\n');
+    }else if(curTool==='prefix'){
+      const pre=$('toolPre').value||'', suf=$('toolSuf').value||'';
+      result=input.split('\n').filter(l=>l.trim()).map(l=>pre+l.trim()+suf).join('\n');
+    }else if(curTool==='dedupe'){
+      const lines=input.split('\n').map(l=>l.trim()).filter(Boolean);
+      result=[...new Set(lines)].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true})).join('\n');
+    }else if(curTool==='urls'){
+      result=(input.match(/https?:\/\/[^\s<>"'）)]+/g)||[]).join('\n');
+    }else if(curTool==='split'){
+      result=input.split('\n').map(l=>l.trim()).filter(Boolean).join('\n');
+    }else if(curTool==='base64'){
+      result=$('toolB64Dec').checked
+        ? decodeURIComponent(escape(atob(input.trim())))
+        : btoa(unescape(encodeURIComponent(input.trim())));
+    }else if(curTool==='count'){
+      const lines=input.split('\n');
+      result=`行数：${lines.length}\n非空行：${lines.filter(l=>l.trim()).length}\n字符数：${input.length}\n字节数(UTF-8)：${new Blob([input]).size}`;
+    }else if(String(curTool).startsWith('ext')){
+      const t=extTools[Number(String(curTool).slice(3))];
+      if(!t||!t.cmd)return toast('该外部工具未配置命令');
+      const ext=$('toolExtFor')?$('toolExtFor').value:'.txt';
+      return call('run_tool',t.cmd,input,ext).then(m=>{toast(m);out.value=m;});
+    }
+    out.value=result;
+    toast(result?'处理完成 ✓':'没有输出结果');
+  }catch(e){
+    out.value='处理失败：'+e.message;
+    toast('处理失败：'+e.message);
+  }
+}
+/* 工具箱执行按钮放在参数行下方（动态渲染，避免重复绑定） */
+function ensureRunBtn(){
+  let b=$('toolRunBtn');
+  if(!b){
+    b=document.createElement('button'); b.id='toolRunBtn'; b.className='btn primary';
+    b.style.cssText='margin-top:9px;width:100%;padding:8px'; b.textContent='▶ 执行处理';
+    $('toolParams').parentNode.appendChild(b);
+    b.onclick=runTool;
+  }
+  b.textContent=curTool.startsWith&&curTool.startsWith('ext')?'▶ 调用外部程序':'▶ 执行处理';
+}
+$('toolCopy').onclick=()=>copyText($('toolOutput').value);
+$('toolSave').onclick=()=>call('save_text',$('toolOutput').value,$('toolExt').value).then(toast);
+$('toolSaveExt').onclick=()=>call('save_text',$('toolOutput').value,$('toolExt').value).then(toast);
+
+function renderExtTools(){
+  $('extTools').innerHTML=extTools.map((t,i)=>`
+    <div class="extcard" data-i="${i}">
+      <div class="row"><input class="nm" value="${esc(t.name||'')}" placeholder="工具名称"><button class="btn mini" data-act="del" style="color:var(--err)">删</button></div>
+      <div class="row"><input class="cmd" value="${esc(t.cmd||'')}" placeholder="命令模板，如 notepad.exe {file}"></div>
+      <div class="hint">${esc(t.note||'')}</div>
+    </div>`).join('');
+}
+$('extTools').onclick=e=>{
+  const b=e.target.closest('[data-act="del"]'); if(!b)return;
+  const i=Number(b.closest('.extcard').dataset.i); extTools.splice(i,1);
+  if(String(curTool).startsWith('ext')){curTool='jsonfmt';}
+  renderExtTools(); renderToolGrid(); renderToolParams(); ensureRunBtn();
+};
+$('extTools').oninput=e=>{
+  const card=e.target.closest('.extcard'); if(!card)return;
+  const i=Number(card.dataset.i);
+  if(e.target.classList.contains('nm')) extTools[i].name=e.target.value;
+  if(e.target.classList.contains('cmd')) extTools[i].cmd=e.target.value;
+};
+$('toolAddExt').onclick=()=>{ extTools.push({name:'新外部工具',cmd:'notepad.exe {file}',note:''}); renderExtTools(); renderToolGrid(); };
+$('toolSaveExtCfg').onclick=()=>call('save_tools',extTools).then(m=>{toast(m);renderToolGrid();});
+
+/* ============ 设置 / 偏好 ============ */
+function savePrefs(){
+  try{
+    localStorage.setItem('pcprefs',JSON.stringify({
+      theme:$('setTheme').value, follow:$('setFollow').checked, capSize:Number($('setCapSize').value)
+    }));
+  }catch(e){}
+}
+function loadPrefs(){
+  let p={}; try{ p=JSON.parse(localStorage.getItem('pcprefs')||'{}'); }catch(e){}
+  $('setTheme').value=p.theme||'light'; document.body.dataset.theme=p.theme||'light';
+  $('setFollow').checked=p.follow!==false; $('autoFollow').checked=$('setFollow').checked;
+  $('setCapSize').value=String(p.capSize||100); capSize=Number(p.capSize||100);
+  $('capSize').value=String(capSize);
+}
+$('setTheme').onchange=e=>{document.body.dataset.theme=e.target.value;savePrefs();};
+$('setFollow').onchange=e=>{$('autoFollow').checked=e.target.checked;savePrefs();};
+$('setCapSize').onchange=e=>{capSize=Number(e.target.value);$('capSize').value=e.target.value;capPage=1;renderList();savePrefs();};
+$('setBody').onchange=e=>call('set_capture_body',e.target.checked).then(toast);
+$('setOpenRules').onclick=()=>call('open_rules_dir').then(toast);
+$('setOpenDir').onclick=()=>call('open_data_dir').then(toast);
+
+/* ============ 初始化 ============ */
+loadPrefs();
+$('detailPane').innerHTML='<div class="blank">点左侧任意请求的地址<br>查看响应正文、Cookie、请求头</div>';
+$('genDetailPane').innerHTML='<div class="blank">点左侧生成地址<br>查看它来自哪个接口、响应是什么</div>';
+renderDash();
+applyFilter();
+
+function initApi(){
+  call('version').then(v=>{ if(v) $('verText').textContent='v'+v; });
+  call('get_rules').then(r=>{rules=Array.isArray(r)?r:[];renderRules();});
+  call('get_bookmarks').then(b=>{bookmarks=Array.isArray(b)?b:[];renderBookmarks();});
+  call('get_nav_tools').then(t=>{navTools=Array.isArray(t)?t:[];renderNavCats();renderNavGrid();renderNavDetail();});
+  call('get_tools').then(t=>{extTools=Array.isArray(t)?t:[];renderExtTools();renderToolGrid();renderToolParams();ensureRunBtn();});
+  call('rules_path').then(p=>{ if(p){$('ruleSaveHint').textContent='规则文件：'+p;$('setRulesPath').textContent=p;} });
+  poll();
+}
+// pywebview 的 JS API 在 pywebviewready 事件后才注入；直接调用会静默失败
+if(window.pywebview && window.pywebview.api) initApi();
+else window.addEventListener('pywebviewready',initApi,{once:true});
+</script>
+</body>
+</html>
