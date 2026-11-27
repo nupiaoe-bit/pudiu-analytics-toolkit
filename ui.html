@@ -180,11 +180,20 @@ pre{font-family:Consolas,"Courier New",monospace;font-size:11.5px;line-height:1.
 .samplebar select{min-width:240px;max-width:380px}
 .keys{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;width:100%}
 .chip{font-size:11px;padding:3px 8px;border-radius:12px;background:var(--panel2);border-color:var(--border);color:var(--primary);font-family:Consolas,monospace}
-.rulecard{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:13px 15px;margin-bottom:11px;box-shadow:var(--shadow)}
-.rulecard.off{opacity:.62}
-.rulehead{display:flex;gap:8px;align-items:center;margin-bottom:11px}
+.rulecard{background:var(--panel);border:1px solid var(--border);border-radius:9px;margin-bottom:9px;box-shadow:var(--shadow);overflow:hidden}
+.rulecard.off{opacity:.6}
+.rulehead{display:flex;gap:8px;align-items:center;padding:11px 13px;cursor:pointer;user-select:none;flex-wrap:wrap}
+.rulehead:hover{background:var(--panel2)}
+.rulecard.open .rulehead{border-bottom:1px solid var(--border);background:var(--panel2)}
+.rulehead .caret{color:var(--muted);font-size:12px;width:12px;flex:none}
 .rulehead .rn{font-weight:700;color:#7c3aed;white-space:nowrap}
-.rulehead input[type=text]{flex:1}
+.rulehead .rtitle{font-size:13px;white-space:nowrap}
+.rulehead .modebadge{font-size:10px;padding:2px 7px;border-radius:10px;white-space:nowrap;border:1px solid var(--border);color:var(--muted)}
+.rulehead .modebadge.m-links{color:#2563eb;border-color:rgba(37,99,235,.4);background:rgba(37,99,235,.08)}
+.rulehead .modebadge.m-sitemap{color:#0891b2;border-color:rgba(8,145,178,.4);background:rgba(8,145,178,.08)}
+.rulehead .rsum{flex:1;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:90px}
+.rulebody{padding:12px 14px}
+.rfoot{display:flex;gap:10px;align-items:center;margin-top:10px}
 .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .rgrid .full{grid-column:1/-1}
 .fld label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
@@ -360,16 +369,21 @@ pre{font-family:Consolas,"Courier New",monospace;font-size:11.5px;line-height:1.
     <section class="view" id="view-rules">
       <div class="rulesview">
         <div class="notice">
-          <b>规则怎么用：</b>先在抓包列表里点一条有 JSON 响应的请求，回到本页它会自动成为「样例响应」。
-          填接口 URL 关键字（如 <code>findNoticesBynotices</code>）、目标字段名（如 <code>id</code>）、前缀后缀，点「试运行」验证，
-          然后回抓包页翻页 —— 命中接口的响应会自动提取字段、拼成地址并累积到「结果」页。规则实时保存。
+          <b>三种提取模式：</b>① <b>字段提取</b>——从 JSON 响应按字段名取值拼地址；② <b>页面链接</b>——从 HTML 页面提取 a 标签里的链接（相对地址自动补全）；
+          ③ <b>站点地图</b>——从 sitemap XML/TXT 提取全部 URL。先在抓包页点一条响应作为「样例」，展开规则配置后点「试运行」验证，
+          然后正常浏览/翻页，命中的响应会自动提取并累积到「结果」页。规则默认收起显示标题，点击展开编辑，改动实时保存。
         </div>
         <div class="samplebar">
           <span class="hint">样例响应：</span>
           <select id="sampleSel"></select>
           <button class="btn mini" id="btnSampleRefresh">刷新</button>
-          <span class="hint" id="sampleInfo">选择一条 JSON 响应</span>
+          <span class="hint" id="sampleInfo">选择一条响应</span>
           <div class="keys" id="sampleKeys"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <button class="btn mini" id="btnExpandAll">全部展开</button>
+          <button class="btn mini" id="btnCollapseAll">全部收起</button>
+          <span class="hint" id="ruleCountHint"></span>
         </div>
         <div id="ruleCards"></div>
         <button class="addcard" id="btnAddRule">＋ 添加一条规则</button>
@@ -614,7 +628,7 @@ $('selCopy').onclick=()=>{ copyText($('selCopy')._text); $('selCopy').style.disp
 let allRows=[], filtered=[], lastId=0, selectedId=null, sortKey='id', sortAsc=false;
 let rules=[], genRows=[], genFiltered=[], lastGenId=0, genPage=1, genSize=50, selectedGenIds=new Set();
 let capPage=1, capSize=100, curView='dash', captureOn=false, pollTimer=null, diagCache=null;
-let detailState={}, sampleId=0, activeRule=0;
+let detailState={}, sampleId=0, activeRule=0, openRules=new Set();
 let navTools=[], navCat='全部', navKeyword='', navSel=-1;
 
 /* ============ 视图切换 ============ */
@@ -916,26 +930,40 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'){
 } });
 
 /* ============ 规则 ============ */
+function sampleKind(r){
+  const m=String(r.mime||'').toLowerCase();
+  if(m.includes('json')||looksJSON(r.resp_body||'')) return 'JSON';
+  if(m.includes('html')) return 'HTML';
+  if(m.includes('xml')) return 'XML';
+  if(m.includes('javascript')) return 'JS';
+  return '文本';
+}
 function loadSamples(){
-  const cands=allRows.filter(r=>r.resp_body&&(looksJSON(r.resp_body)||String(r.mime||'').includes('json'))).slice(-50).reverse();
+  const cands=allRows.filter(r=>r.resp_body&&!String(r.resp_body).startsWith('[响应过大')).slice(-80).reverse();
   const sel=$('sampleSel'), prev=String(sel.value||'');
-  sel.innerHTML=cands.length?cands.map(r=>`<option value="${r.id}">#${r.id} ${esc(r.method)} ${esc(String(r.path||'').slice(0,64))}</option>`).join(''):'<option value="">暂无 JSON 响应样例</option>';
+  sel.innerHTML=cands.length?cands.map(r=>`<option value="${r.id}">#${r.id} [${sampleKind(r)}] ${esc(r.method)} ${esc(String(r.path||'').slice(0,56))}</option>`).join(''):'<option value="">暂无响应样例，先去抓包页点一条请求</option>';
   if(prev && cands.some(r=>String(r.id)===prev)) sel.value=prev;
   sampleId=Number(sel.value)||0;
-  $('sampleInfo').textContent=sampleId?'当前样例 #'+sampleId:'抓到 JSON 响应后自动可选';
+  $('sampleInfo').textContent=sampleId?'当前样例 #'+sampleId+'（'+sampleKind(allRows.find(r=>r.id===sampleId)||{})+'）':'抓到响应后自动可选';
   renderSampleKeys();
 }
 $('sampleSel').onchange=()=>{
   sampleId=Number($('sampleSel').value)||0;
-  $('sampleInfo').textContent=sampleId?'当前样例 #'+sampleId:'抓到 JSON 响应后自动可选';
+  const r=allRows.find(x=>x.id===sampleId);
+  $('sampleInfo').textContent=sampleId?'当前样例 #'+sampleId+'（'+(r?sampleKind(r):'')+'）':'抓到响应后自动可选';
   renderSampleKeys();
 };
 $('btnSampleRefresh').onclick=()=>loadSamples();
 function renderSampleKeys(){
   const box=$('sampleKeys');
+  const curMode=(rules[activeRule]&&rules[activeRule].mode)||'field';
+  if(curMode==='links'||curMode==='sitemap'){
+    box.innerHTML='<span class="hint">链接模式：在规则里配「只包含/排除链接」过滤，试运行可预览提取结果</span>';
+    return;
+  }
   if(!sampleId){ box.innerHTML='<span class="hint">点字段名可直接填入当前编辑的规则</span>'; return; }
   call('sample_keys',sampleId).then(keys=>{
-    box.innerHTML=(keys&&keys.length)?keys.map(k=>`<button class="chip" data-k="${esc(k)}">${esc(k)}</button>`).join(''):'<span class="hint">未在样例中解析出字段</span>';
+    box.innerHTML=(keys&&keys.length)?keys.map(k=>`<button class="chip" data-k="${esc(k)}">${esc(k)}</button>`).join(''):'<span class="hint">未在样例中解析出字段（字段模式需 JSON 响应）</span>';
   });
 }
 $('sampleKeys').onclick=e=>{
@@ -943,72 +971,151 @@ $('sampleKeys').onclick=e=>{
   rules[activeRule].target_key=c.dataset.k;
   call('save_rules',rules).then(()=>{ renderRules(); toast('已填入字段：'+c.dataset.k); });
 };
+const MODE_LABEL={field:'字段提取',links:'页面链接',sitemap:'站点地图'};
+function ruleSummary(r){
+  const mode=r.mode||'field';
+  if(mode==='links'||mode==='sitemap'){
+    const bits=[];
+    if(r.url_match) bits.push('页面 '+r.url_match);
+    if(r.link_include) bits.push('含 '+r.link_include);
+    if(r.link_exclude) bits.push('排除 '+r.link_exclude);
+    if(r.link_same_host) bits.push('同域');
+    return bits.length?bits.join(' · '):(mode==='sitemap'?'sitemap 内全部链接':'页面内全部链接');
+  }
+  const bits=[];
+  if(r.url_match) bits.push(r.url_match);
+  if(r.target_key) bits.push('{'+r.target_key+'}');
+  if(r.prefix||r.suffix) bits.push((r.prefix||'')+'…'+(r.suffix||''));
+  return bits.length?bits.join(' · '):'未配置';
+}
+function ruleEditForm(r,i){
+  const mode=r.mode||'field';
+  const isLink=(mode==='links'||mode==='sitemap');
+  return `<div class="rgrid">
+    <div class="fld"><label>提取模式</label>
+      <select onchange="ruleChange(${i},'mode',this.value)">
+        <option value="field" ${mode==='field'?'selected':''}>字段提取（JSON）</option>
+        <option value="links" ${mode==='links'?'selected':''}>页面链接（HTML）</option>
+        <option value="sitemap" ${mode==='sitemap'?'selected':''}>站点地图（XML/TXT）</option>
+      </select></div>
+    <div class="fld"><label>规则名称</label>
+      <input type="text" value="${esc(r.name||'')}" placeholder="规则名称" onchange="ruleChange(${i},'name',this.value)"></div>
+    <div class="fld full"><label>作用页面 URL 关键字（逗号分隔，留空=匹配所有响应）</label>
+      <input type="text" value="${esc(r.url_match||'')}" placeholder="字段模式填接口名；链接模式填页面地址关键字，如 /list 或 sitemap.xml" onchange="ruleChange(${i},'url_match',this.value)"></div>
+    ${isLink?`
+    <div class="fld"><label>请求方法</label>
+      <select onchange="ruleChange(${i},'method',this.value)">
+        <option value="" ${!r.method?'selected':''}>不限</option>
+        <option value="GET" ${r.method==='GET'?'selected':''}>GET</option>
+        <option value="POST" ${r.method==='POST'?'selected':''}>POST</option>
+      </select></div>
+    <div class="fld"><label>最多提取条数</label>
+      <input type="text" value="${esc(r.link_max||'')}" placeholder="留空=不限" onchange="ruleChange(${i},'link_max',this.value)"></div>
+    <div class="fld"><label>只包含链接（逗号分隔，留空=全部）</label>
+      <input type="text" value="${esc(r.link_include||'')}" placeholder="如 /detail/,article" onchange="ruleChange(${i},'link_include',this.value)"></div>
+    <div class="fld"><label>排除链接（逗号分隔）</label>
+      <input type="text" value="${esc(r.link_exclude||'')}" placeholder="如 .css,.js,javascript" onchange="ruleChange(${i},'link_exclude',this.value)"></div>
+    <div class="fld full"><label class="chk"><input type="checkbox" ${r.link_same_host?'checked':''} onchange="ruleChange(${i},'link_same_host',this.checked)">只保留同域链接</label>
+      <label class="chk" style="margin-left:14px"><input type="checkbox" ${r.link_full_url?'checked':''} onchange="ruleChange(${i},'link_full_url',this.checked)">丢弃相对链接（仅保留完整 http 地址）</label>
+      <div class="hint" style="margin-top:5px">相对链接会自动按当前页面地址补全为绝对地址；内链外链按上面条件过滤。</div></div>
+    `:`
+    <div class="fld"><label>目标字段名（点上方字段可自动填入）</label>
+      <input type="text" value="${esc(r.target_key||'')}" placeholder="如 id / noticeId / url" onfocus="activeRule=${i}" onchange="ruleChange(${i},'target_key',this.value)"></div>
+    <div class="fld"><label>请求方法</label>
+      <select onchange="ruleChange(${i},'method',this.value)">
+        <option value="" ${!r.method?'selected':''}>不限</option>
+        <option value="GET" ${r.method==='GET'?'selected':''}>GET</option>
+        <option value="POST" ${r.method==='POST'?'selected':''}>POST</option>
+      </select></div>
+    `}
+    <div class="fld"><label>前缀</label><input type="text" value="${esc(r.prefix||'')}" placeholder="如 https://ex.com/detail?id=" onchange="ruleChange(${i},'prefix',this.value)"></div>
+    <div class="fld"><label>后缀</label><input type="text" value="${esc(r.suffix||'')}" placeholder="可留空" onchange="ruleChange(${i},'suffix',this.value)"></div>
+    <div class="fld full">
+      <label class="chk"><input type="checkbox" ${r.dedupe!==false?'checked':''} onchange="ruleChange(${i},'dedupe',this.checked)">自动去重</label>
+      <div class="hint" style="margin-top:5px">预览：${esc(r.prefix||'')}{${isLink?'链接':esc(r.target_key||'字段值')}}${esc(r.suffix||'')}</div>
+    </div>
+  </div>`;
+}
 function renderRules(){
   const box=$('ruleCards');
   if(!rules.length){
-    box.innerHTML='<div class="blank">还没有规则，点下面按钮添加<br>例如：接口关键字 findNoticesBynotices，字段名 id，前缀公告详情地址</div>';
+    box.innerHTML='<div class="blank">还没有规则，点下面按钮添加<br>例如：字段模式抓 JSON 里的 id；页面链接模式抓列表页里的详情链接</div>';
   }else{
-    box.innerHTML=rules.map((r,i)=>`
-      <div class="rulecard ${r.enabled?'':'off'}">
-        <div class="rulehead">
-          <span class="rn">规则 ${i+1}</span>
-          <input type="text" value="${esc(r.name||'')}" placeholder="规则名称" onchange="ruleChange(${i},'name',this.value)">
-          <label class="chk"><input type="checkbox" ${r.enabled?'checked':''} onchange="ruleChange(${i},'enabled',this.checked)">启用</label>
+    box.innerHTML=rules.map((r,i)=>{
+      const open=openRules.has(i), mode=r.mode||'field';
+      return `<div class="rulecard ${r.enabled?'':'off'} ${open?'open':''}">
+        <div class="rulehead" data-act="toggle" data-i="${i}" title="点击${open?'收起':'展开编辑'}">
+          <span class="caret">${open?'▾':'▸'}</span>
+          <span class="rn">${i+1}</span>
+          <b class="rtitle">${esc(r.name||'未命名规则')}</b>
+          <span class="modebadge m-${mode}">${MODE_LABEL[mode]||mode}</span>
+          <span class="rsum">${esc(ruleSummary(r))}</span>
+          <label class="chk" onclick="event.stopPropagation()"><input type="checkbox" ${r.enabled?'checked':''} onchange="ruleChange(${i},'enabled',this.checked)">启用</label>
           <button class="btn mini" data-act="preview" data-i="${i}">试运行</button>
           <button class="btn mini" data-act="del" data-i="${i}" style="color:var(--err)">删除</button>
         </div>
-        <div class="rgrid">
-          <div class="fld full"><label>接口 URL 关键字（逗号分隔，留空=匹配所有）</label>
-            <input type="text" value="${esc(r.url_match||'')}" placeholder="如 findNoticesBynotices" onchange="ruleChange(${i},'url_match',this.value)"></div>
-          <div class="fld"><label>目标字段名（点上方字段可自动填入）</label>
-            <input type="text" value="${esc(r.target_key||'')}" placeholder="如 id / noticeId / url" onfocus="activeRule=${i}" onchange="ruleChange(${i},'target_key',this.value)"></div>
-          <div class="fld"><label>请求方法</label>
-            <select onchange="ruleChange(${i},'method',this.value)">
-              <option value="" ${!r.method?'selected':''}>不限</option>
-              <option value="GET" ${r.method==='GET'?'selected':''}>GET</option>
-              <option value="POST" ${r.method==='POST'?'selected':''}>POST</option>
-            </select></div>
-          <div class="fld"><label>前缀</label><input type="text" value="${esc(r.prefix||'')}" placeholder="https://example.com/detail?id=" onchange="ruleChange(${i},'prefix',this.value)"></div>
-          <div class="fld"><label>后缀</label><input type="text" value="${esc(r.suffix||'')}" placeholder="可留空" onchange="ruleChange(${i},'suffix',this.value)"></div>
-          <div class="fld full">
-            <label class="chk"><input type="checkbox" ${r.dedupe!==false?'checked':''} onchange="ruleChange(${i},'dedupe',this.checked)">自动去重</label>
-            <div class="hint" style="margin-top:5px">预览：${esc(r.prefix||'')}{${esc(r.target_key||'字段值')}}${esc(r.suffix||'')}</div>
-          </div>
-        </div>
-        <div class="preview" id="rp_${i}"><span class="hint">点「试运行」用当前样例响应验证这条规则</span></div>
-      </div>`).join('');
+        ${open?`<div class="rulebody">
+          ${ruleEditForm(r,i)}
+          <div class="preview" id="rp_${i}"><span class="hint">点「试运行」用当前样例响应验证这条规则</span></div>
+          <div class="rfoot"><button class="btn primary mini" data-act="done" data-i="${i}">✓ 完成并收起</button><span class="hint">改动已自动保存</span></div>
+        </div>`:''}
+      </div>`;
+    }).join('');
   }
+  const nOn=rules.filter(r=>r.enabled!==false).length;
+  $('ruleCountHint').textContent=`共 ${rules.length} 条，启用 ${nOn} 条 · 点击标题展开编辑`;
   updateBadges();
 }
 $('ruleCards').onclick=e=>{
   const b=e.target.closest('[data-act]'); if(!b)return;
-  const i=Number(b.dataset.i);
-  if(b.dataset.act==='del'){
-    rules.splice(i,1); call('save_rules',rules).then(m=>{toast(m);renderRules();});
-  }else if(b.dataset.act==='preview'){
+  const i=Number(b.dataset.i), act=b.dataset.act;
+  if(act==='toggle'){
+    if(openRules.has(i)) openRules.delete(i); else openRules.add(i);
+    activeRule=i;
+    renderRules(); renderSampleKeys();
+  }else if(act==='done'){
+    openRules.delete(i); activeRule=-1; renderRules(); toast('规则已保存');
+  }else if(act==='del'){
+    rules.splice(i,1);
+    // 重建展开集合的索引
+    const next=new Set(); openRules.forEach(x=>{ if(x<i) next.add(x); else if(x>i) next.add(x-1); });
+    openRules=next; activeRule=-1;
+    call('save_rules',rules).then(m=>{toast(m);renderRules();});
+  }else if(act==='preview'){
     if(!sampleId) return toast('请先在上方选择一条样例响应');
     if(!rules[i]) return;
+    openRules.add(i); activeRule=i;
+    if(!$('rp_'+i)) renderRules();
     call('preview_rule',rules[i],sampleId).then(vals=>{
       const box=$('rp_'+i); if(!box)return;
-      box.innerHTML=(vals&&vals.length)?`<b>${vals.length}</b> 个结果：`+vals.slice(0,8).map(v=>`<code>${esc(v)}</code>`).join('')+(vals.length>8?' …':''):'<span class="hint" style="color:var(--err)">没有匹配到字段：检查接口关键字和字段名</span>';
+      const mode=rules[i].mode||'field';
+      const tip=(mode==='links'||mode==='sitemap')?'没有提取到链接：检查页面关键字与过滤条件':'没有匹配到字段：检查接口关键字和字段名';
+      box.innerHTML=(vals&&vals.length)?`<b>${vals.length}</b> 个结果：`+vals.slice(0,8).map(v=>`<code>${esc(v)}</code>`).join('')+(vals.length>8?' …':''):`<span class="hint" style="color:var(--err)">${tip}</span>`;
     });
   }
 };
 function ruleChange(i,k,v){
   if(!rules[i])return;
   rules[i][k]=v;
+  // 改模式/名称会改变标题行徽标与编辑表单，需重绘；其余字段局部更新即可
+  const needRedraw=(k==='mode'||k==='name');
   call('save_rules',rules).then(()=>{
-    updateBadges();
-    const card=$('ruleCards').children[i];
-    if(card) card.classList.toggle('off',!rules[i].enabled);
+    if(needRedraw){ renderRules(); renderSampleKeys(); }
+    else{
+      updateBadges();
+      const card=$('ruleCards').children[i];
+      if(card) card.classList.toggle('off',!rules[i].enabled);
+    }
     $('ruleSaveHint').textContent='已保存 · '+new Date().toLocaleTimeString();
   });
 }
 $('btnAddRule').onclick=()=>{
-  rules.push({name:'新规则',enabled:true,url_match:'',method:'',target_key:'',prefix:'',suffix:'',dedupe:true});
-  activeRule=rules.length-1;
-  call('save_rules',rules).then(()=>{renderRules();toast('已添加规则');});
+  rules.push({name:'新规则',enabled:true,mode:'field',url_match:'',method:'',target_key:'',prefix:'',suffix:'',dedupe:true,link_include:'',link_exclude:'',link_max:'',link_same_host:false,link_full_url:false});
+  openRules.add(rules.length-1); activeRule=rules.length-1;
+  call('save_rules',rules).then(()=>{renderRules();renderSampleKeys();toast('已添加规则');});
 };
+$('btnExpandAll').onclick=()=>{if(!rules.length)return;openRules=new Set(rules.map((_,i)=>i));activeRule=0;renderRules();renderSampleKeys();};
+$('btnCollapseAll').onclick=()=>{openRules.clear();activeRule=-1;renderRules();};
 $('btnSaveRules').onclick=()=>call('save_rules',rules).then(m=>{toast(m);$('ruleSaveHint').textContent='已保存 · '+new Date().toLocaleTimeString();});
 $('btnOpenRules').onclick=()=>call('open_rules_dir').then(toast);
 

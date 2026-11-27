@@ -430,20 +430,31 @@ class Sniffer:
             return
         with self._lock:
             self._diag["matched"] += 1
-        ok, _data = rules_mod.parse_loose(body)
-        if not ok:
-            with self._lock:
-                self._diag["json_fail"] += 1
-                errs = self._diag["errors"]
-                errs.append(f"非JSON响应 {rec.get('path', '')} : {body[:50]}")
-                if len(errs) > 8:
-                    del errs[0]
+        # 链接模式（页面链接 / sitemap）直接处理 HTML/XML 正文；字段模式仍需 JSON
+        link_modes = {"links", "sitemap"}
+        has_link_rule = any((r.get("mode", "field") or "field") in link_modes for r in matched)
+        has_field_rule = any((r.get("mode", "field") or "field") not in link_modes for r in matched)
+        ok = False
+        if has_field_rule:
+            ok, _data = rules_mod.parse_loose(body)
+            if not ok:
+                with self._lock:
+                    self._diag["json_fail"] += 1
+                    errs = self._diag["errors"]
+                    errs.append(f"非JSON响应 {rec.get('path', '')} : {body[:50]}")
+                    if len(errs) > 8:
+                        del errs[0]
+            else:
+                with self._lock:
+                    self._diag["json_ok"] += 1
+        if not ok and not has_link_rule:
             return
-        with self._lock:
-            self._diag["json_ok"] += 1
         added = 0
         for rule in matched:
-            values = rules_mod.apply_rule_to_text(body, rule)
+            # 字段模式若正文非 JSON 则跳过；链接模式不受影响
+            if (rule.get("mode", "field") or "field") not in link_modes and not ok:
+                continue
+            values = rules_mod.apply_rule_to_text(body, rule, base_url=rec.get("url", ""))
             if not values:
                 with self._lock:
                     self._diag["no_key"] += 1
@@ -541,7 +552,7 @@ class Sniffer:
         if not rec or not rule:
             return 0
         before = len(self.generated)
-        vals = rules_mod.apply_rule_to_text(rec.get("resp_body", ""), rule)
+        vals = rules_mod.apply_rule_to_text(rec.get("resp_body", ""), rule, base_url=rec.get("url", ""))
         for v in vals:
             with self._lock:
                 key = (rule.get("name", ""), v)
@@ -706,7 +717,7 @@ class Sniffer:
             rec = next((r for r in self.records if r["id"] == rec_id), None)
         if not rec or not isinstance(rule, dict):
             return []
-        return rules_mod.apply_rule_to_text(rec.get("resp_body", ""), rule)
+        return rules_mod.apply_rule_to_text(rec.get("resp_body", ""), rule, base_url=rec.get("url", ""))
 
     def count(self):
         with self._lock:

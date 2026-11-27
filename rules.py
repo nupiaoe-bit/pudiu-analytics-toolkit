@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
-"""字段提取规则引擎：从响应 JSON 中扫描目标字段，套前后缀生成地址/文本。"""
+"""规则引擎：从响应正文中提取字段 / 页面链接 / 站点地图链接，套前后缀生成地址/文本。"""
 import json
 import os
+import re
 import sys
+from html import unescape
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlparse
 
 
 def data_dir():
@@ -89,10 +93,111 @@ def parse_loose(text):
     return False, None
 
 
-def apply_rule_to_text(text, rule):
+class _LinkHTMLParser(HTMLParser):
+    """从 HTML 中收集 a/link/area 的 href 与 img/script/iframe 的 src。"""
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        want = {"href"} if tag in ("a", "link", "area") else ({"src"} if tag in ("img", "script", "iframe", "source") else set())
+        if not want:
+            return
+        for k, v in attrs:
+            if k and k.lower() in want and v:
+                self.links.append(v.strip())
+
+
+def extract_html_links(text):
+    """解析 HTML 正文，返回原始链接字符串列表（含相对链接、锚点）。"""
+    p = _LinkHTMLParser()
+    try:
+        p.feed(text or "")
+        p.close()
+    except Exception:
+        pass
+    # 兜底：正则抓 <a href=...>，防止畸形 HTML 让解析器漏掉
+    for m in re.finditer(r"""<a\b[^>]*?\bhref\s*=\s*["']([^"']+)["']""", text or "", re.I | re.S):
+        p.links.append(m.group(1).strip())
+    return p.links
+
+
+def extract_sitemap_locs(text):
+    """解析 sitemap XML / txt，返回 <loc> 或纯文本 URL 列表。"""
+    out = []
+    for m in re.finditer(r"<loc>\s*(.*?)\s*</loc>", text or "", re.I | re.S):
+        out.append(unescape(m.group(1)).strip())
+    if not out:
+        # sitemap.txt：一行一个 URL
+        for line in (text or "").splitlines():
+            s = line.strip()
+            if s.startswith(("http://", "https://")):
+                out.append(s)
+    return out
+
+
+def normalize_link(raw, base_url="", rule=None):
+    """把一条原始链接规范化为绝对地址；按规则过滤。返回地址或空串。"""
+    rule = rule or {}
+    s = unescape((raw or "").strip())
+    if not s or s.startswith("#"):
+        return ""
+    low = s.lower()
+    if low.startswith(("javascript:", "mailto:", "tel:", "data:", "about:")):
+        return ""
+    if base_url and not low.startswith(("http://", "https://")):
+        s = urljoin(base_url, s)
+    # include：逗号分隔，任一命中即保留
+    inc = [x.strip().lower() for x in str(rule.get("link_include", "") or "").split(",") if x.strip()]
+    if inc and not any(x in s.lower() for x in inc):
+        return ""
+    # exclude：逗号分隔，任一命中即丢弃
+    exc = [x.strip().lower() for x in str(rule.get("link_exclude", "") or "").split(",") if x.strip()]
+    if exc and any(x in s.lower() for x in exc):
+        return ""
+    if rule.get("link_full_url") and not s.lower().startswith(("http://", "https://")):
+        return ""
+    if rule.get("link_same_host") and base_url:
+        try:
+            if urlparse(s).netloc and urlparse(s).netloc != urlparse(base_url).netloc:
+                return ""
+        except Exception:
+            pass
+    return s
+
+
+def apply_links_rule(text, rule, base_url=""):
+    """从 HTML / sitemap 正文提取并规范化链接，返回去重后的地址列表。"""
+    mode = rule.get("mode", "field")
+    if mode == "sitemap":
+        raws = extract_sitemap_locs(text)
+    else:  # links
+        raws = extract_html_links(text)
+    out, seen = [], set()
+    for raw in raws:
+        u = normalize_link(raw, base_url, rule)
+        if u and u not in seen:
+            seen.add(u)
+            out.append(u)
+    if rule.get("link_max"):
+        try:
+            out = out[:max(1, int(rule["link_max"]))]
+        except Exception:
+            pass
+    return out
+
+
+def apply_rule_to_text(text, rule, base_url=""):
     """把一条响应正文套用规则，返回生成的字符串列表。"""
     if not rule.get("enabled", True):
         return []
+    mode = rule.get("mode", "field") or "field"
+    prefix = rule.get("prefix", "") or ""
+    suffix = rule.get("suffix", "") or ""
+    if mode == "links" or mode == "sitemap":
+        # 链接模式下前后缀默认留空；如用户填写则套在链接外侧
+        return [prefix + v + suffix for v in apply_links_rule(text, rule, base_url)]
     key = (rule.get("target_key") or "").strip()
     if not key:
         return []
@@ -100,12 +205,7 @@ def apply_rule_to_text(text, rule):
     if not ok:
         return []
     vals = extract_values(data, key, rule.get("case_insensitive", True))
-    prefix = rule.get("prefix", "") or ""
-    suffix = rule.get("suffix", "") or ""
-    result = []
-    for v in vals:
-        result.append(prefix + v + suffix)
-    return result
+    return [prefix + v + suffix for v in vals]
 
 
 def rule_matches(rule, rec):
